@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vector Search Testing Interface</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 350px;
+            gap: 20px;
+            height: calc(100vh - 40px);
+        }
+        .main-panel {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+        }
+        .upload-section {
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .upload-section.dragover {
+            border-color: #007bff;
+            background: #f8f9ff;
+        }
+        input[type="file"] {
+            margin: 10px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        .search-input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            resize: vertical;
+            min-height: 100px;
+            margin-bottom: 20px;
+        }
+        .results-section {
+            flex: 1;
+            overflow-y: auto;
+        }
+        .result-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+        .result-score {
+            background: #e3f2fd;
+            color: #1565c0;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            display: inline-block;
+            margin-bottom: 8px;
+        }
+        .result-source {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 5px;
+        }
+        .result-content {
+            color: #555;
+            line-height: 1.4;
+        }
+        .status {
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+            font-size: 14px;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        .sources-list {
+            margin-bottom: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        .source-item {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        .source-item .title {
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
+        .source-item .chunks {
+            color: #666;
+            font-size: 12px;
+        }
+        h2 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        h3 {
+            margin-bottom: 10px;
+            color: #555;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="main-panel">
+            <h2>Testing Interface</h2>
+            
+            <!-- Upload Section -->
+            <div class="upload-section" id="uploadSection">
+                <h3>1. Upload Text Files</h3>
+                <p>Drag & drop .txt files here or click to select</p>
+                <input type="file" id="fileInput" multiple accept=".txt" />
+                <button onclick="uploadFiles()">Upload Files</button>
+            </div>
+
+            <!-- Search Section -->
+            <div>
+                <h3>4. Search Your Documents</h3>
+                <textarea 
+                    class="search-input" 
+                    id="searchInput" 
+                    placeholder="Start typing your question or topic here..."
+                    oninput="debounceSearch()"
+                ></textarea>
+            </div>
+
+            <!-- Status Messages -->
+            <div id="statusMessages"></div>
+        </div>
+
+        <div class="sidebar">
+            <h2>Results & Status</h2>
+            
+            <!-- Uploaded Sources -->
+            <div>
+                <h3>Uploaded Sources</h3>
+                <div id="sourcesList" class="sources-list">
+                    <p class="loading">No sources uploaded yet</p>
+                </div>
+            </div>
+
+            <!-- Search Results -->
+            <div>
+                <h3>5. Relevant Results</h3>
+                <div id="searchResults" class="results-section">
+                    <p class="loading">Type in the search box to see results</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+        let searchTimeout;
+
+        // Initialize drag and drop
+        const uploadSection = document.getElementById('uploadSection');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            fileInput.files = e.dataTransfer.files;
+        });
+
+        uploadSection.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // Upload files function
+        async function uploadFiles() {
+            const files = fileInput.files;
+            if (!files || files.length === 0) {
+                showStatus('Please select files to upload', 'error');
+                return;
+            }
+
+            showStatus('Uploading and processing files...', 'info');
+
+            try {
+                for (let file of files) {
+                    if (!file.name.endsWith('.txt')) {
+                        showStatus(`Skipping ${file.name} - only .txt files supported`, 'error');
+                        continue;
+                    }
+
+                    const text = await file.text();
+                    
+                    // Step 2: Send to backend for processing
+                    const response = await fetch(`${API_BASE}/upload-source`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            title: file.name.replace('.txt', ''),
+                            author: 'Unknown',
+                            content: text,
+                            source_type: 'txt'
+                        })
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`Failed to upload ${file.name}`);
+                    }
+
+                    const result = await response.json();
+                    showStatus(`✓ ${file.name} uploaded and processed (${result.chunks_created} chunks)`, 'success');
+                }
+
+                // Refresh sources list
+                loadSources();
+                
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+            }
+        }
+
+        // Load and display sources
+        async function loadSources() {
+            try {
+                const response = await fetch(`${API_BASE}/sources`);
+                const sources = await response.json();
+                
+                const sourcesList = document.getElementById('sourcesList');
+                if (sources.length === 0) {
+                    sourcesList.innerHTML = '<p class="loading">No sources uploaded yet</p>';
+                    return;
+                }
+
+                sourcesList.innerHTML = sources.map(source => `
+                    <div class="source-item">
+                        <div class="title">${source.title}</div>
+                        <div class="chunks">${source.chunk_count || 0} chunks</div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error loading sources:', error);
+            }
+        }
+
+        // Search with debouncing
+        function debounceSearch() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(performSearch, 500);
+        }
+
+        // Perform search
+        async function performSearch() {
+            const query = document.getElementById('searchInput').value.trim();
+            const resultsDiv = document.getElementById('searchResults');
+            
+            if (!query) {
+                resultsDiv.innerHTML = '<p class="loading">Type in the search box to see results</p>';
+                return;
+            }
+
+            resultsDiv.innerHTML = '<p class="loading">Searching...</p>';
+
+            try {
+                const response = await fetch(`${API_BASE}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ query, limit: 5 })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Search failed');
+                }
+
+                const results = await response.json();
+                
+                if (results.length === 0) {
+                    resultsDiv.innerHTML = '<p class="loading">No results found</p>';
+                    return;
+                }
+
+                resultsDiv.innerHTML = results.map(result => `
+                    <div class="result-item">
+                        <div class="result-score">Score: ${(result.score * 100).toFixed(1)}%</div>
+                        <div class="result-source">${result.source_title}</div>
+                        <div class="result-content">${result.content}</div>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                resultsDiv.innerHTML = `<p class="loading">Error: ${error.message}</p>`;
+            }
+        }
+
+        // Show status messages
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('statusMessages');
+            const statusEl = document.createElement('div');
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = message;
+            
+            statusDiv.appendChild(statusEl);
+            
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (statusEl.parentNode) {
+                    statusEl.parentNode.removeChild(statusEl);
+                }
+            }, 5000);
+        }
+
+        // Load sources on page load
+        loadSources();
+    </script>
+</body>
+</html>
