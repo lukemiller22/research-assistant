@@ -24,7 +24,8 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -137,6 +138,298 @@ app.get('/test-tables', async (req, res) => {
 });
 
 // ===== NEW ENDPOINTS FOR TESTING =====
+
+// Rough token estimation (1 token ≈ 4 characters for English text)
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4);
+}
+
+function splitLongContent(content, maxTokens = 8000) {
+  const estimatedTokens = estimateTokens(content);
+  
+  if (estimatedTokens <= maxTokens) {
+    return [content];
+  }
+  
+  // Split by sentences if too long
+  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const chunks = [];
+  let currentChunk = '';
+  
+  for (const sentence of sentences) {
+    const testChunk = currentChunk + (currentChunk ? '. ' : '') + sentence;
+    
+    if (estimateTokens(testChunk) > maxTokens && currentChunk.length > 0) {
+      chunks.push(currentChunk.trim());
+      currentChunk = sentence;
+    } else {
+      currentChunk = testChunk;
+    }
+  }
+  
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks;
+}
+
+// Add this new function to your server.js file (before the upload-source endpoint)
+
+function parseRoamJSON(jsonContent) {
+  const chunks = [];
+  let data;
+  
+  try {
+    data = JSON.parse(jsonContent);
+  } catch (error) {
+    throw new Error('Invalid JSON format');
+  }
+  
+  // Roam exports are arrays of pages
+  if (!Array.isArray(data)) {
+    throw new Error('Expected Roam export to be an array of pages');
+  }
+  
+  let chunkIndex = 0;
+  
+  // Process each page
+  data.forEach(page => {
+    const pageTitle = page.title || 'Untitled Page';
+    
+    // Add page title as a chunk if it exists and has meaningful content
+    if (pageTitle && pageTitle !== 'Untitled Page') {
+      chunks.push({
+        content: `Page: ${pageTitle}`,
+        structure_path: `Page: ${pageTitle}`,
+        chunk_index: chunkIndex++,
+        page_title: pageTitle,
+        block_type: 'page_title'
+      });
+    }
+    
+    // Process all blocks in the page
+    if (page.children && Array.isArray(page.children)) {
+      processBlocks(page.children, chunks, pageTitle, '', chunkIndex);
+    }
+  });
+  
+  return chunks;
+}
+
+function processBlocks(blocks, chunks, pageTitle, parentPath = '', startIndex = 0) {
+  let chunkIndex = startIndex;
+  
+  blocks.forEach((block, index) => {
+    // Extract the text content from the block
+    let blockText = '';
+    
+    if (block.string) {
+      blockText = block.string;
+    } else if (typeof block === 'string') {
+      blockText = block;
+    }
+    
+    // Clean up Roam syntax (basic cleanup)
+    if (blockText) {
+      // Remove some Roam markup but keep the content readable
+      blockText = blockText
+        .replace(/\{\{(?:TODO|DONE)\}\}/g, '') // Remove TODO/DONE
+        .replace(/\[\[([^\]]+)\]\]/g, '$1') // Convert [[Page]] to Page
+        .replace(/\(\(([^)]+)\)\)/g, '[Block Reference]') // Simplify block refs
+        .replace(/#\[\[([^\]]+)\]\]/g, '#$1') // Convert #[[tag]] to #tag
+        .trim();
+      
+      // Only add non-empty blocks
+      if (blockText.length > 0) {
+        const structurePath = parentPath 
+          ? `${pageTitle} > ${parentPath} > Block ${index + 1}`
+          : `${pageTitle} > Block ${index + 1}`;
+        
+        chunks.push({
+          content: blockText,
+          structure_path: structurePath,
+          chunk_index: chunkIndex++,
+          page_title: pageTitle,
+          block_type: 'block',
+          block_uid: block.uid || null
+        });
+      }
+    }
+    
+    // Recursively process nested blocks
+    if (block.children && Array.isArray(block.children)) {
+      const newParentPath = parentPath 
+        ? `${parentPath} > Block ${index + 1}`
+        : `Block ${index + 1}`;
+      chunkIndex = processBlocks(block.children, chunks, pageTitle, newParentPath, chunkIndex);
+    }
+  });
+  
+  return chunkIndex;
+}
+
+// Update your upload-source endpoint to handle JSON files
+app.post('/upload-source', async (req, res) => {
+  try {
+    const { title, author, content, source_type } = req.body;
+    
+    // 1. Insert source into database
+    const { data: source, error: sourceError } = await supabase
+      .from('sources')
+      .insert({
+        title,
+        author,
+        source_type,
+        user_id: null // for testing
+      })
+      .select()
+      .single();
+
+    if (sourceError) throw sourceError;
+
+    let chunks;
+    
+    // 2. Parse content based on source type
+    if (source_type === 'roam' || source_type === 'json') {
+      chunks = parseRoamJSON(content);
+    } else {
+      // Original text chunking for .txt files
+      const textChunks = splitIntoChunks(content, 500);
+      chunks = textChunks.map((chunk, index) => ({
+        content: chunk,
+        structure_path: `Chunk ${index + 1}`,
+        chunk_index: index,
+        page_title: title,
+        block_type: 'text_chunk'
+      }));
+    }
+    
+    let chunksCreated = 0;
+    
+    // 3. Process each chunk
+for (let i = 0; i < chunks.length; i++) {
+  const chunk = chunks[i];
+  
+  // Split content if it's too long for OpenAI
+  const contentPieces = splitLongContent(chunk.content);
+  
+  for (let pieceIndex = 0; pieceIndex < contentPieces.length; pieceIndex++) {
+    const content = contentPieces[pieceIndex];
+    
+    // Generate embedding for chunk
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: content,
+    });
+    
+    const embedding = embeddingResponse.data[0].embedding;
+    
+    // Create unique structure path for split content
+    const structurePath = contentPieces.length > 1 
+      ? `${chunk.structure_path} (Part ${pieceIndex + 1})`
+      : chunk.structure_path;
+    
+    // Store chunk in database
+    const { data: chunkData, error: chunkError } = await supabase
+      .from('source_chunks')
+      .insert({
+        source_id: source.id,
+        content: content,
+        chunk_index: chunksCreated,
+        structure_path: structurePath
+      })
+      .select()
+      .single();
+
+    if (chunkError) throw chunkError;
+    
+    // Store embedding in Qdrant
+    await qdrant.upsert('documents', {
+      wait: true,
+      points: [{
+        id: chunkData.id,
+        vector: embedding,
+        payload: {
+          source_id: source.id,
+          source_title: title,
+          content: content,
+          chunk_index: chunksCreated,
+          structure_path: structurePath,
+          page_title: chunk.page_title,
+          block_type: chunk.block_type,
+          block_uid: chunk.block_uid || null
+        }
+      }]
+    });
+    
+    chunksCreated++;
+    
+    // Log progress for large uploads
+    if (chunksCreated % 100 === 0) {
+      console.log(`Processed ${chunksCreated} chunks...`);
+    }
+  }
+}
+      
+      const embedding = embeddingResponse.data[0].embedding;
+      
+      // Store chunk in database
+      const { data: chunkData, error: chunkError } = await supabase
+        .from('source_chunks')
+        .insert({
+          source_id: source.id,
+          content: chunk.content,
+          chunk_index: chunk.chunk_index,
+          structure_path: chunk.structure_path
+        })
+        .select()
+        .single();
+
+      if (chunkError) throw chunkError;
+      
+      // Store embedding in Qdrant
+      await qdrant.upsert('documents', {
+        wait: true,
+        points: [{
+          id: chunkData.id,
+          vector: embedding,
+          payload: {
+            source_id: source.id,
+            source_title: title,
+            content: chunk.content,
+            chunk_index: chunk.chunk_index,
+            structure_path: chunk.structure_path,
+            page_title: chunk.page_title,
+            block_type: chunk.block_type,
+            block_uid: chunk.block_uid || null
+          }
+        }]
+      });
+      
+      chunksCreated++;
+      
+      // Log progress for large uploads
+      if (chunksCreated % 100 === 0) {
+        console.log(`Processed ${chunksCreated}/${chunks.length} chunks...`);
+      }
+    }
+
+    res.json({
+      message: 'Source uploaded and processed successfully',
+      source_id: source.id,
+      chunks_created: chunksCreated,
+      source_type: source_type
+    });
+
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ 
+      error: 'Failed to upload source',
+      details: error.message 
+    });
+  }
+});
 
 // Upload and process source
 app.post('/upload-source', async (req, res) => {
