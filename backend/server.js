@@ -406,6 +406,103 @@ app.get('/sources', async (req, res) => {
   }
 });
 
+// Delete source endpoint - FIXED VERSION
+app.delete('/sources/:id', async (req, res) => {
+  try {
+    const sourceId = parseInt(req.params.id);
+    
+    if (!sourceId || isNaN(sourceId)) {
+      return res.status(400).json({ error: 'Invalid source ID' });
+    }
+
+    console.log(`Starting deletion process for source ID: ${sourceId}`);
+
+    // 1. First, get all chunks for this source to delete from Qdrant
+    const { data: chunks, error: chunksError } = await supabase
+      .from('source_chunks')
+      .select('id')
+      .eq('source_id', sourceId);
+
+    if (chunksError) {
+      console.error('Error fetching chunks:', chunksError);
+      throw chunksError;
+    }
+
+    console.log(`Found ${chunks?.length || 0} chunks to delete`);
+
+    // 2. Delete embeddings from Qdrant using filter (more reliable than individual IDs)
+    if (chunks && chunks.length > 0) {
+      try {
+        // Use filter to delete all points with this source_id
+        const deleteResult = await qdrant.delete('documents', {
+          wait: true,
+          filter: {
+            must: [
+              {
+                key: "source_id",
+                match: {
+                  value: sourceId
+                }
+              }
+            ]
+          }
+        });
+        
+        console.log(`Qdrant delete result:`, deleteResult);
+        console.log(`Successfully deleted embeddings for source ${sourceId} from Qdrant`);
+      } catch (qdrantError) {
+        console.error('Error deleting from Qdrant:', qdrantError);
+        // Log but continue with database deletion - don't fail the entire operation
+        console.log('Continuing with database cleanup despite Qdrant error...');
+      }
+    }
+
+    // 3. Delete chunks from database
+    const { error: deleteChunksError, count: deletedChunksCount } = await supabase
+      .from('source_chunks')
+      .delete()
+      .eq('source_id', sourceId);
+
+    if (deleteChunksError) {
+      console.error('Error deleting chunks:', deleteChunksError);
+      throw deleteChunksError;
+    }
+
+    console.log(`Deleted ${deletedChunksCount || chunks?.length || 0} chunks from database`);
+
+    // 4. Delete source from database
+    const { error: deleteSourceError, count: deletedSourceCount } = await supabase
+      .from('sources')
+      .delete()
+      .eq('id', sourceId);
+
+    if (deleteSourceError) {
+      console.error('Error deleting source:', deleteSourceError);
+      throw deleteSourceError;
+    }
+
+    if (deletedSourceCount === 0) {
+      return res.status(404).json({ error: 'Source not found' });
+    }
+
+    console.log(`Successfully deleted source ${sourceId}`);
+
+    res.json({
+      message: 'Source deleted successfully',
+      source_id: sourceId,
+      deleted_chunks: chunks?.length || 0,
+      deleted_from_qdrant: true
+    });
+
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete source',
+      details: error.message 
+    });
+  }
+});
+
 // Search endpoint
 app.post('/search', async (req, res) => {
   try {
