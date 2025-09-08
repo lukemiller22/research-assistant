@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Assistant - Library</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .nav {
+            display: flex;
+            gap: 24px;
+        }
+        
+        .nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 500;
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+        
+        .nav a.active {
+            background: #f1f5f9;
+            color: #334155;
+        }
+        
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .settings-btn {
+            background: none;
+            border: none;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: #64748b;
+        }
+        
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            background: #3b82f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 40px 24px;
+        }
+        
+        .page-header {
+            margin-bottom: 32px;
+        }
+        
+        .page-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1e293b;
+            margin-bottom: 8px;
+        }
+        
+        .page-subtitle {
+            color: #64748b;
+            font-size: 16px;
+        }
+        
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+        }
+        
+        .section-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+        
+        .section-subtitle {
+            color: #64748b;
+            font-size: 14px;
+        }
+        
+        .upload-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background 0.2s ease;
+        }
+        
+        .upload-btn:hover {
+            background: #2563eb;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 40px;
+        }
+        
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .stat-label {
+            color: #64748b;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 8px;
+        }
+        
+        .stat-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: #1e293b;
+        }
+        
+        .stat-value.ready { color: #059669; }
+        .stat-value.processing { color: #d97706; }
+        .stat-value.favorites { color: #7c3aed; }
+        
+        .library-content {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .library-tabs {
+            display: flex;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        
+        .tab-btn {
+            background: none;
+            border: none;
+            padding: 16px 24px;
+            font-weight: 500;
+            color: #64748b;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        
+        .tab-btn.active {
+            color: #1e293b;
+            border-bottom-color: #3b82f6;
+        }
+        
+        .library-controls {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .search-bar {
+            flex: 1;
+            max-width: 400px;
+            position: relative;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 10px 16px 10px 40px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        
+        .search-icon {
+            position: absolute;
+            left: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+        }
+        
+        .view-controls {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .filter-btn {
+            background: none;
+            border: 1px solid #d1d5db;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .view-toggle {
+            display: flex;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        
+        .view-btn {
+            background: none;
+            border: none;
+            padding: 8px 12px;
+            cursor: pointer;
+            color: #64748b;
+        }
+        
+        .view-btn.active {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .sources-container {
+            padding: 24px;
+        }
+        
+        .source-item {
+            display: flex;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .source-item:last-child {
+            border-bottom: none;
+        }
+        
+        .source-icon {
+            width: 48px;
+            height: 48px;
+            background: #f8fafc;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            margin-right: 16px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .source-info {
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .source-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+        
+        .source-subtitle {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        
+        .source-meta {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            color: #9ca3af;
+            font-size: 12px;
+        }
+        
+        .source-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .action-btn {
+            background: none;
+            border: none;
+            padding: 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            color: #64748b;
+        }
+        
+        .action-btn:hover {
+            background: #f1f5f9;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 80px 20px;
+            color: #9ca3af;
+        }
+        
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.5;
+        }
+        
+        .empty-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+        
+        .empty-description {
+            margin-bottom: 24px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            📚 Research Assistant
+        </div>
+        <nav class="nav">
+            <a href="projects.html">Projects</a>
+            <a href="writing.html">Write</a>
+            <a href="library.html" class="active">Library</a>
+            <a href="#settings">Settings</a>
+        </nav>
+        <div class="user-menu">
+            <button class="settings-btn">⚙️</button>
+            <div class="user-avatar">JD</div>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="page-header">
+            <h1 class="page-title">Research Library</h1>
+            <p class="page-subtitle">Manage your theological sources, books, and research materials</p>
+        </div>
+
+        <div class="section-header">
+            <div>
+                <h2 class="section-title">Library Overview</h2>
+                <p class="section-subtitle">Manage and organize your research sources</p>
+            </div>
+            <button class="upload-btn" onclick="window.location.href='test.html'">
+                📤 Upload Sources
+            </button>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-label">Total Sources</div>
+                <div class="stat-value" id="totalSources">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Ready to Use</div>
+                <div class="stat-value ready" id="readySources">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Processing</div>
+                <div class="stat-value processing" id="processingSources">0</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Favorites</div>
+                <div class="stat-value favorites" id="favoritesSources">0</div>
+            </div>
+        </div>
+
+        <div class="library-content">
+            <div class="library-tabs">
+                <button class="tab-btn active" onclick="switchTab('all')">All Sources</button>
+                <button class="tab-btn" onclick="switchTab('recent')">Recently Added</button>
+            </div>
+
+            <div class="library-controls">
+                <div class="search-bar">
+                    <div class="search-icon">🔍</div>
+                    <input type="text" class="search-input" placeholder="Search sources, authors, or tags..." id="searchInput">
+                </div>
+                <div class="view-controls">
+                    <button class="filter-btn">
+                        🔽 All Types
+                    </button>
+                    <div class="view-toggle">
+                        <button class="view-btn" onclick="setView('grid')">⊞</button>
+                        <button class="view-btn active" onclick="setView('list')">☰</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sources-container" id="sourcesContainer">
+                <div class="empty-state">
+                    <div class="empty-icon">📚</div>
+                    <div class="empty-title">No sources yet</div>
+                    <div class="empty-description">Upload your first source to get started with research suggestions</div>
+                    <button class="upload-btn" onclick="window.location.href='test.html'">
+                        📤 Upload Source
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+        let allSources = [];
+
+        // Load sources from backend
+        async function loadSources() {
+            try {
+                const response = await fetch(`${API_BASE}/sources`);
+                const sources = await response.json();
+                allSources = sources;
+                updateStats();
+                displaySources(sources);
+            } catch (error) {
+                console.error('Error loading sources:', error);
+            }
+        }
+
+        // Update statistics
+        function updateStats() {
+            const total = allSources.length;
+            const ready = allSources.filter(s => s.status === 'ready' || !s.status).length;
+            const processing = allSources.filter(s => s.status === 'processing').length;
+            const favorites = allSources.filter(s => s.is_favorite).length;
+
+            document.getElementById('totalSources').textContent = total;
+            document.getElementById('readySources').textContent = ready;
+            document.getElementById('processingSources').textContent = processing;
+            document.getElementById('favoritesSources').textContent = favorites;
+        }
+
+        // Display sources in the container
+        function displaySources(sources) {
+            const container = document.getElementById('sourcesContainer');
+            
+            if (sources.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📚</div>
+                        <div class="empty-title">No sources yet</div>
+                        <div class="empty-description">Upload your first source to get started with research suggestions</div>
+                        <button class="upload-btn" onclick="window.location.href='test.html'">
+                            📤 Upload Source
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = sources.map(source => {
+                const icon = getSourceIcon(source.source_type);
+                const date = new Date(source.created_at).toLocaleDateString();
+                
+                return `
+                    <div class="source-item">
+                        <div class="source-icon">${icon}</div>
+                        <div class="source-info">
+                            <div class="source-title">${source.title}</div>
+                            <div class="source-subtitle">${source.author || 'Unknown Author'}</div>
+                            <div class="source-meta">
+                                <span>📅 ${date}</span>
+                                <span>📊 ${source.chunk_count || 0} chunks</span>
+                                <span>${source.source_type.toUpperCase()}</span>
+                            </div>
+                        </div>
+                        <div class="source-actions">
+                            <button class="action-btn" title="More options">⋯</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Get icon for source type
+        function getSourceIcon(sourceType) {
+            switch (sourceType) {
+                case 'txt': return '📄';
+                case 'pdf': return '📕';
+                case 'roam':
+                case 'json': return '🧠';
+                case 'epub': return '📖';
+                default: return '📄';
+            }
+        }
+
+        // Switch between tabs
+        function switchTab(tab) {
+            // Update active tab
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+
+            // Filter sources based on tab
+            let filteredSources;
+            if (tab === 'recent') {
+                filteredSources = [...allSources]
+                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                    .slice(0, 10);
+            } else {
+                filteredSources = allSources;
+            }
+
+            displaySources(filteredSources);
+        }
+
+        // Set view mode
+        function setView(mode) {
+            document.querySelectorAll('.view-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            // Could implement grid/list view toggle here
+        }
+
+        // Search sources
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase();
+            const filtered = allSources.filter(source => 
+                source.title.toLowerCase().includes(query) ||
+                (source.author && source.author.toLowerCase().includes(query)) ||
+                source.source_type.toLowerCase().includes(query)
+            );
+            displaySources(filtered);
+        });
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadSources();
+        });
+    </script>
+</body>
+</html>
