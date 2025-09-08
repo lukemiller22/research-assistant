@@ -16,6 +16,7 @@ const openai = new OpenAI({
 const qdrant = new QdrantClient({
   url: process.env.QDRANT_URL,
   apiKey: process.env.QDRANT_API_KEY,
+  timeout: 60000, // 60 second timeout
 });
 
 // Initialize Express app
@@ -25,7 +26,7 @@ const PORT = process.env.PORT || 3001;
 // Middleware
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -137,44 +138,7 @@ app.get('/test-tables', async (req, res) => {
   }
 });
 
-// ===== NEW ENDPOINTS FOR TESTING =====
-
-// Rough token estimation (1 token ≈ 4 characters for English text)
-function estimateTokens(text) {
-  return Math.ceil(text.length / 4);
-}
-
-function splitLongContent(content, maxTokens = 8000) {
-  const estimatedTokens = estimateTokens(content);
-  
-  if (estimatedTokens <= maxTokens) {
-    return [content];
-  }
-  
-  // Split by sentences if too long
-  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
-  const chunks = [];
-  let currentChunk = '';
-  
-  for (const sentence of sentences) {
-    const testChunk = currentChunk + (currentChunk ? '. ' : '') + sentence;
-    
-    if (estimateTokens(testChunk) > maxTokens && currentChunk.length > 0) {
-      chunks.push(currentChunk.trim());
-      currentChunk = sentence;
-    } else {
-      currentChunk = testChunk;
-    }
-  }
-  
-  if (currentChunk.trim()) {
-    chunks.push(currentChunk.trim());
-  }
-  
-  return chunks;
-}
-
-// Add this new function to your server.js file (before the upload-source endpoint)
+// ===== ROAM PARSING FUNCTIONS =====
 
 function parseRoamJSON(jsonContent) {
   const chunks = [];
@@ -210,7 +174,7 @@ function parseRoamJSON(jsonContent) {
     
     // Process all blocks in the page
     if (page.children && Array.isArray(page.children)) {
-      processBlocks(page.children, chunks, pageTitle, '', chunkIndex);
+      chunkIndex = processBlocks(page.children, chunks, pageTitle, '', chunkIndex);
     }
   });
   
@@ -269,7 +233,43 @@ function processBlocks(blocks, chunks, pageTitle, parentPath = '', startIndex = 
   return chunkIndex;
 }
 
-// Update your upload-source endpoint to handle JSON files
+// Rough token estimation (1 token ≈ 4 characters for English text)
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4);
+}
+
+function splitLongContent(content, maxTokens = 8000) {
+  const estimatedTokens = estimateTokens(content);
+  
+  if (estimatedTokens <= maxTokens) {
+    return [content];
+  }
+  
+  // Split by sentences if too long
+  const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const chunks = [];
+  let currentChunk = '';
+  
+  for (const sentence of sentences) {
+    const testChunk = currentChunk + (currentChunk ? '. ' : '') + sentence;
+    
+    if (estimateTokens(testChunk) > maxTokens && currentChunk.length > 0) {
+      chunks.push(currentChunk.trim());
+      currentChunk = sentence;
+    } else {
+      currentChunk = testChunk;
+    }
+  }
+  
+  if (currentChunk.trim()) {
+    chunks.push(currentChunk.trim());
+  }
+  
+  return chunks;
+}
+
+// ===== UPLOAD AND PROCESS SOURCE =====
+
 app.post('/upload-source', async (req, res) => {
   try {
     const { title, author, content, source_type } = req.body;
@@ -308,49 +308,44 @@ app.post('/upload-source', async (req, res) => {
     let chunksCreated = 0;
     
     // 3. Process each chunk
-for (let i = 0; i < chunks.length; i++) {
-  const chunk = chunks[i];
-  
-  // Split content if it's too long for OpenAI
-  const contentPieces = splitLongContent(chunk.content);
-  
-  for (let pieceIndex = 0; pieceIndex < contentPieces.length; pieceIndex++) {
-    const content = contentPieces[pieceIndex];
-    
-    // Generate embedding for chunk
-    const embeddingResponse = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: content,
-    });
-    
-    const embedding = embeddingResponse.data[0].embedding;
-    
-    // Create unique structure path for split content
-    const structurePath = contentPieces.length > 1 
-      ? `${chunk.structure_path} (Part ${pieceIndex + 1})`
-      : chunk.structure_path;
-    
-    // Store chunk in database
-    const { data: chunkData, error: chunkError } = await supabase
-      .from('source_chunks')
-      .insert({
-        source_id: source.id,
-        content: content,
-        chunk_index: chunksCreated,
-        structure_path: structurePath
-      })
-      .select()
-      .single();
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      
+      // Split content if it's too long for OpenAI
+      const contentPieces = splitLongContent(chunk.content);
+      
+      for (let pieceIndex = 0; pieceIndex < contentPieces.length; pieceIndex++) {
+        const content = contentPieces[pieceIndex];
+        
+        // Generate embedding for chunk
+        const embeddingResponse = await openai.embeddings.create({
+          model: "text-embedding-3-small",
+          input: content,
+        });
+        
+        const embedding = embeddingResponse.data[0].embedding;
+        
+        // Create unique structure path for split content
+        const structurePath = contentPieces.length > 1 
+          ? `${chunk.structure_path} (Part ${pieceIndex + 1})`
+          : chunk.structure_path;
+        
+        // Store chunk in database
+        const { data: chunkData, error: chunkError } = await supabase
+          .from('source_chunks')
+          .insert({
+            source_id: source.id,
+            content: content,
+            chunk_index: chunksCreated,
+            structure_path: structurePath
+          })
+          .select()
+          .single();
 
-    if (chunkError) throw chunkError;
-    
-    // Store embedding in Qdrant
-    await qdrant.upsert('documents', {
-      wait: true,
-      points: [{
-        id: chunkData.id,
-        vector: embedding,
-        payload: {
+        if (chunkError) throw chunkError;
+        
+        // Store embedding in Qdrant with retry logic
+        await uploadToQdrantWithRetry(chunkData, embedding, {
           source_id: source.id,
           source_title: title,
           content: content,
@@ -359,59 +354,14 @@ for (let i = 0; i < chunks.length; i++) {
           page_title: chunk.page_title,
           block_type: chunk.block_type,
           block_uid: chunk.block_uid || null
+        });
+        
+        chunksCreated++;
+        
+        // Log progress for large uploads
+        if (chunksCreated % 100 === 0) {
+          console.log(`Processed ${chunksCreated} chunks...`);
         }
-      }]
-    });
-    
-    chunksCreated++;
-    
-    // Log progress for large uploads
-    if (chunksCreated % 100 === 0) {
-      console.log(`Processed ${chunksCreated} chunks...`);
-    }
-  }
-}
-      
-      const embedding = embeddingResponse.data[0].embedding;
-      
-      // Store chunk in database
-      const { data: chunkData, error: chunkError } = await supabase
-        .from('source_chunks')
-        .insert({
-          source_id: source.id,
-          content: chunk.content,
-          chunk_index: chunk.chunk_index,
-          structure_path: chunk.structure_path
-        })
-        .select()
-        .single();
-
-      if (chunkError) throw chunkError;
-      
-      // Store embedding in Qdrant
-      await qdrant.upsert('documents', {
-        wait: true,
-        points: [{
-          id: chunkData.id,
-          vector: embedding,
-          payload: {
-            source_id: source.id,
-            source_title: title,
-            content: chunk.content,
-            chunk_index: chunk.chunk_index,
-            structure_path: chunk.structure_path,
-            page_title: chunk.page_title,
-            block_type: chunk.block_type,
-            block_uid: chunk.block_uid || null
-          }
-        }]
-      });
-      
-      chunksCreated++;
-      
-      // Log progress for large uploads
-      if (chunksCreated % 100 === 0) {
-        console.log(`Processed ${chunksCreated}/${chunks.length} chunks...`);
       }
     }
 
@@ -420,88 +370,6 @@ for (let i = 0; i < chunks.length; i++) {
       source_id: source.id,
       chunks_created: chunksCreated,
       source_type: source_type
-    });
-
-  } catch (error) {
-    console.error('Upload error:', error);
-    res.status(500).json({ 
-      error: 'Failed to upload source',
-      details: error.message 
-    });
-  }
-});
-
-// Upload and process source
-app.post('/upload-source', async (req, res) => {
-  try {
-    const { title, author, content, source_type } = req.body;
-    
-    // 1. Insert source into database
-    const { data: source, error: sourceError } = await supabase
-      .from('sources')
-      .insert({
-        title,
-        author,
-        source_type,
-        user_id: null // for testing
-      })
-      .select()
-      .single();
-
-    if (sourceError) throw sourceError;
-
-    // 2. Split content into chunks (simple chunking for now)
-    const chunks = splitIntoChunks(content, 500); // 500 chars per chunk
-    
-    let chunksCreated = 0;
-    
-    for (let i = 0; i < chunks.length; i++) {
-      const chunk = chunks[i];
-      
-      // 3. Generate embedding for chunk
-      const embeddingResponse = await openai.embeddings.create({
-        model: "text-embedding-3-small",
-        input: chunk,
-      });
-      
-      const embedding = embeddingResponse.data[0].embedding;
-      
-      // 4. Store chunk in database
-      const { data: chunkData, error: chunkError } = await supabase
-        .from('source_chunks')
-        .insert({
-          source_id: source.id,
-          content: chunk,
-          chunk_index: i,
-          structure_path: `Chunk ${i + 1}`
-        })
-        .select()
-        .single();
-
-      if (chunkError) throw chunkError;
-      
-      // 5. Store embedding in Qdrant
-      await qdrant.upsert('documents', {
-        wait: true,
-        points: [{
-          id: chunkData.id,
-          vector: embedding,
-          payload: {
-            source_id: source.id,
-            source_title: title,
-            content: chunk,
-            chunk_index: i
-          }
-        }]
-      });
-      
-      chunksCreated++;
-    }
-
-    res.json({
-      message: 'Source uploaded and processed successfully',
-      source_id: source.id,
-      chunks_created: chunksCreated
     });
 
   } catch (error) {
@@ -564,7 +432,10 @@ app.post('/search', async (req, res) => {
       content: point.payload.content,
       source_title: point.payload.source_title,
       chunk_index: point.payload.chunk_index,
-      source_id: point.payload.source_id
+      source_id: point.payload.source_id,
+      structure_path: point.payload.structure_path,
+      page_title: point.payload.page_title,
+      block_type: point.payload.block_type
     }));
 
     res.json(results);
@@ -577,6 +448,34 @@ app.post('/search', async (req, res) => {
     });
   }
 });
+
+// Add retry logic for Qdrant uploads
+async function uploadToQdrantWithRetry(chunkData, embedding, payload, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await qdrant.upsert('documents', {
+        wait: true,
+        points: [{
+          id: chunkData.id,
+          vector: embedding,
+          payload: payload
+        }]
+      });
+      return; // Success - exit the retry loop
+    } catch (error) {
+      console.log(`Qdrant upload attempt ${attempt} failed:`, error.message);
+      
+      if (attempt === maxRetries) {
+        throw error; // Final attempt failed - throw the error
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s delays
+      console.log(`Retrying in ${delay/1000} seconds...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
 
 // Helper function to split text into chunks
 function splitIntoChunks(text, maxChunkSize) {
