@@ -53,6 +53,34 @@
             color: #334155;
         }
         
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .settings-btn {
+            background: none;
+            border: none;
+            padding: 8px;
+            border-radius: 6px;
+            cursor: pointer;
+            color: #64748b;
+        }
+        
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            background: #3b82f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
         .main-container {
             display: flex;
             height: calc(100vh - 60px);
@@ -294,10 +322,15 @@
             📚 Research Assistant
         </div>
         <nav class="nav">
+            <a href="projects.html">Projects</a>
             <a href="writing.html" class="active">Write</a>
-            <a href="test.html">Library</a>
+            <a href="library.html">Library</a>
             <a href="#settings">Settings</a>
         </nav>
+        <div class="user-menu">
+            <button class="settings-btn">⚙️</button>
+            <div class="user-avatar">JD</div>
+        </div>
     </div>
 
     <div class="main-container">
