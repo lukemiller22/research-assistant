@@ -161,8 +161,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
+            font-size: 16px;
             flex-shrink: 0;
+            color: #64748b;
         }
         
         .project-info {
@@ -219,13 +220,41 @@
         .project-date {
             display: flex;
             align-items: center;
-            gap: 4px;
+            gap: 6px;
         }
         
         .project-stats {
             display: flex;
             align-items: center;
             gap: 12px;
+        }
+        
+        .project-tag {
+            background: #f1f5f9;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            color: #475569;
+        }
+        
+        /* Cleaner icons */
+        .icon-calendar {
+            width: 14px;
+            height: 14px;
+            color: #94a3b8;
+        }
+        
+        .icon-clock {
+            width: 14px;
+            height: 14px;
+            color: #94a3b8;
+        }
+        
+        .icon-document {
+            width: 20px;
+            height: 20px;
+            color: #64748b;
         }
         
         .empty-state {
@@ -255,7 +284,7 @@
 <body>
     <div class="header">
         <div class="logo">
-            📚 Research Assistant
+            Research Assistant
         </div>
         <nav class="nav">
             <a href="projects.html" class="active">Projects</a>
@@ -283,7 +312,11 @@
         <div class="projects-grid">
             <a href="writing.html?project=grace-sovereignty" class="project-card">
                 <div class="project-header">
-                    <div class="project-icon">📄</div>
+                    <div class="project-icon">
+                        <svg class="icon-document" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
                     <div class="project-info">
                         <span class="project-status status-draft">draft</span>
                     </div>
@@ -292,10 +325,18 @@
                 <p class="project-description">Exploring Calvin's understanding of divine grace in contrast to Arminian theology</p>
                 <div class="project-meta">
                     <div class="project-date">
-                        📅 Last modified: 1/14/2024
+                        <svg class="icon-calendar" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Last modified: 1/14/2024
                     </div>
                     <div class="project-stats">
-                        🕐 2,847 words
+                        <span>
+                            <svg class="icon-clock" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline; margin-right: 4px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            2,847 words
+                        </span>
                         <span class="project-tag">Theology</span>
                     </div>
                 </div>
@@ -303,7 +344,11 @@
 
             <a href="writing.html?project=problem-evil" class="project-card">
                 <div class="project-header">
-                    <div class="project-icon">📄</div>
+                    <div class="project-icon">
+                        <svg class="icon-document" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
                     <div class="project-info">
                         <span class="project-status status-review">review</span>
                     </div>
@@ -312,10 +357,18 @@
                 <p class="project-description">Addressing theodicy through the lens of reformed theology and biblical exegesis</p>
                 <div class="project-meta">
                     <div class="project-date">
-                        📅 Last modified: 1/11/2024
+                        <svg class="icon-calendar" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Last modified: 1/11/2024
                     </div>
                     <div class="project-stats">
-                        🕐 1,523 words
+                        <span>
+                            <svg class="icon-clock" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline; margin-right: 4px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            1,523 words
+                        </span>
                         <span class="project-tag">Apologetics</span>
                     </div>
                 </div>
@@ -323,7 +376,11 @@
 
             <a href="writing.html?project=gospel-john" class="project-card">
                 <div class="project-header">
-                    <div class="project-icon">📄</div>
+                    <div class="project-icon">
+                        <svg class="icon-document" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
                     <div class="project-info">
                         <span class="project-status status-complete">complete</span>
                     </div>
@@ -332,10 +389,18 @@
                 <p class="project-description">14-part expository series on John's Gospel with practical applications</p>
                 <div class="project-meta">
                     <div class="project-date">
-                        📅 Last modified: 1/9/2024
+                        <svg class="icon-calendar" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Last modified: 1/9/2024
                     </div>
                     <div class="project-stats">
-                        🕐 8,945 words
+                        <span>
+                            <svg class="icon-clock" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline; margin-right: 4px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            8,945 words
+                        </span>
                         <span class="project-tag">Sermon</span>
                     </div>
                 </div>
@@ -343,7 +408,11 @@
 
             <a href="writing.html?project=digital-ethics" class="project-card">
                 <div class="project-header">
-                    <div class="project-icon">📄</div>
+                    <div class="project-icon">
+                        <svg class="icon-document" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
                     <div class="project-info">
                         <span class="project-status status-draft">draft</span>
                     </div>
@@ -352,10 +421,18 @@
                 <p class="project-description">Examining moral frameworks for technology, social media, and AI from a biblical perspective</p>
                 <div class="project-meta">
                     <div class="project-date">
-                        📅 Last modified: 12/28/2023
+                        <svg class="icon-calendar" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Last modified: 12/28/2023
                     </div>
                     <div class="project-stats">
-                        🕐 892 words
+                        <span>
+                            <svg class="icon-clock" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: inline; margin-right: 4px;">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            892 words
+                        </span>
                         <span class="project-tag">Ethics</span>
                     </div>
                 </div>
