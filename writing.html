@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Assistant - Write</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 12px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .nav {
+            display: flex;
+            gap: 24px;
+        }
+        
+        .nav a {
+            text-decoration: none;
+            color: #64748b;
+            font-weight: 500;
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+        
+        .nav a.active {
+            background: #f1f5f9;
+            color: #334155;
+        }
+        
+        .main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+        }
+        
+        .writing-panel {
+            flex: 1;
+            background: white;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .document-header {
+            padding: 20px 24px 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .document-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1e293b;
+            border: none;
+            outline: none;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+        
+        .document-meta {
+            color: #64748b;
+            font-size: 14px;
+        }
+        
+        .editor-container {
+            flex: 1;
+            padding: 24px;
+            overflow-y: auto;
+        }
+        
+        .editor {
+            width: 100%;
+            border: none;
+            outline: none;
+            font-size: 16px;
+            line-height: 1.6;
+            color: #334155;
+            resize: none;
+            min-height: 100%;
+            font-family: Georgia, 'Times New Roman', serif;
+        }
+        
+        .research-panel {
+            width: 400px;
+            background: white;
+            border-left: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .research-header {
+            padding: 20px 24px 16px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .research-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 16px;
+        }
+        
+        .search-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .search-btn, .regenerate-btn {
+            background: #3b82f6;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .search-btn:hover, .regenerate-btn:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+        
+        .search-btn:disabled, .regenerate-btn:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .regenerate-btn {
+            background: #6b7280;
+        }
+        
+        .regenerate-btn:hover {
+            background: #4b5563;
+        }
+        
+        .context-display {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 12px;
+            font-size: 13px;
+            color: #64748b;
+            font-style: italic;
+            margin-bottom: 16px;
+        }
+        
+        .suggestions-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0 24px 24px;
+        }
+        
+        .suggestion-item {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+            cursor: pointer;
+            position: relative;
+        }
+        
+        .suggestion-item:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+        }
+        
+        .suggestion-item.pinned {
+            border-color: #f59e0b;
+            background: #fffbeb;
+        }
+        
+        .suggestion-item.pinned::before {
+            content: "📌";
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            font-size: 12px;
+        }
+        
+        .suggestion-score {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1d4ed8;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .suggestion-content {
+            color: #374151;
+            line-height: 1.5;
+            margin-bottom: 8px;
+        }
+        
+        .suggestion-source {
+            color: #6b7280;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .loading-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #9ca3af;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #9ca3af;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        
+        .action-btn {
+            background: none;
+            border: 1px solid #e2e8f0;
+            padding: 6px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .action-btn:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+        
+        .action-btn.pinned {
+            background: #fef3c7;
+            border-color: #f59e0b;
+            color: #92400e;
+        }
+        
+        .word-count {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            font-size: 12px;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            📚 Research Assistant
+        </div>
+        <nav class="nav">
+            <a href="writing.html" class="active">Write</a>
+            <a href="test.html">Library</a>
+            <a href="#settings">Settings</a>
+        </nav>
+    </div>
+
+    <div class="main-container">
+        <div class="writing-panel">
+            <div class="document-header">
+                <input 
+                    type="text" 
+                    class="document-title" 
+                    placeholder="Untitled Document"
+                    value="Grace and Sovereignty: A Reformed Perspective"
+                >
+                <div class="document-meta">
+                    Draft • Last modified: Today
+                </div>
+            </div>
+            
+            <div class="editor-container">
+                <textarea 
+                    class="editor" 
+                    id="editor"
+                    placeholder="Start writing your research paper, sermon, or theological reflection..."
+                    oninput="handleEditorChange()"
+                >The concept of grace in Christian theology has been debated for centuries. Calvin's understanding differs significantly from the Catholic interpretation, particularly in his emphasis on unmerited favor and divine sovereignty.
+
+This fundamental doctrine shapes how we approach both salvation and sanctification. The reformers argued that grace cannot be earned through works, but is freely given by God to the elect.
+
+In examining this more closely, we must consider how grace operates in the life of the believer. Calvin taught that grace is not merely God's attitude toward us, but His active power working within us to transform our hearts and minds according to His will.</textarea>
+            </div>
+        </div>
+
+        <div class="research-panel">
+            <div class="research-header">
+                <div class="research-title">Research Suggestions</div>
+                <div class="search-controls">
+                    <button class="search-btn" id="searchBtn" onclick="performContextSearch()" title="Search for relevant sources">
+                        🔍 Search
+                    </button>
+                    <button class="regenerate-btn" id="regenerateBtn" onclick="regenerateResults()" title="Get new results with same context">
+                        🔄 Regenerate
+                    </button>
+                </div>
+                <div class="context-display" id="contextDisplay">
+                    Click the search button to find relevant research suggestions
+                </div>
+            </div>
+            
+            <div class="suggestions-container" id="suggestionsContainer">
+                <div class="empty-state">
+                    Click the search button to find relevant research suggestions
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="word-count" id="wordCount">
+        105 words
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+        let searchTimeout;
+        let lastContext = '';
+        let currentResults = [];
+        let pinnedResults = new Set();
+
+        // Extract context around cursor position
+        function extractCursorContext() {
+            const editor = document.getElementById('editor');
+            const text = editor.value;
+            const cursorPos = editor.selectionStart;
+            
+            if (!text || text.length === 0) {
+                return '';
+            }
+            
+            // Find sentence boundaries around cursor
+            const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+            let currentPos = 0;
+            let targetSentenceIndex = -1;
+            
+            // Find which sentence the cursor is in
+            for (let i = 0; i < sentences.length; i++) {
+                const sentenceEnd = currentPos + sentences[i].length + 1; // +1 for punctuation
+                if (cursorPos <= sentenceEnd) {
+                    targetSentenceIndex = i;
+                    break;
+                }
+                currentPos = sentenceEnd;
+            }
+            
+            if (targetSentenceIndex === -1) {
+                targetSentenceIndex = sentences.length - 1;
+            }
+            
+            // Extract 1-2 sentences before, current, and 1 after
+            const start = Math.max(0, targetSentenceIndex - 1);
+            const end = Math.min(sentences.length, targetSentenceIndex + 2);
+            
+            const contextSentences = sentences.slice(start, end);
+            const context = contextSentences.join('. ').trim();
+            
+            // Fallback: if context is too short, expand to current paragraph
+            if (context.length < 50) {
+                const paragraphs = text.split(/\n\s*\n/);
+                let currentPos = 0;
+                
+                for (const paragraph of paragraphs) {
+                    const paragraphEnd = currentPos + paragraph.length;
+                    if (cursorPos >= currentPos && cursorPos <= paragraphEnd) {
+                        return paragraph.trim();
+                    }
+                    currentPos = paragraphEnd + 2; // +2 for \n\n
+                }
+            }
+            
+            return context;
+        }
+
+        // Handle editor changes (typing)
+        function handleEditorChange() {
+            updateWordCount();
+        }
+
+        // Perform search based on cursor context
+        async function performContextSearch() {
+            const context = extractCursorContext();
+            
+            if (!context || context.length < 20) {
+                alert('Please position your cursor in some text to search for relevant sources.');
+                return;
+            }
+            
+            lastContext = context;
+            
+            // Update context display
+            const maxDisplayLength = 100;
+            const displayContext = context.length > maxDisplayLength 
+                ? context.substring(0, maxDisplayLength) + '...'
+                : context;
+            document.getElementById('contextDisplay').textContent = `Context: "${displayContext}"`;
+            
+            // Disable buttons and show loading
+            document.getElementById('searchBtn').disabled = true;
+            document.getElementById('regenerateBtn').disabled = true;
+            
+            const container = document.getElementById('suggestionsContainer');
+            container.innerHTML = '<div class="loading-state">Searching for relevant sources...</div>';
+            
+            try {
+                const response = await fetch(`${API_BASE}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        query: context, 
+                        limit: 10 
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Search failed');
+                }
+
+                const results = await response.json();
+                currentResults = results;
+                displaySuggestions();
+                
+            } catch (error) {
+                container.innerHTML = '<div class="loading-state">Error loading suggestions</div>';
+                console.error('Search error:', error);
+            } finally {
+                // Re-enable buttons
+                document.getElementById('searchBtn').disabled = false;
+                document.getElementById('regenerateBtn').disabled = false;
+            }
+        }
+
+        // Regenerate results with same context
+        async function regenerateResults() {
+            if (!lastContext) {
+                alert('Please search first to establish context.');
+                return;
+            }
+            
+            // Don't clear pinned results, just get new ones
+            await performContextSearch();
+        }
+
+        // Toggle pin status of a result
+        function togglePin(resultIndex) {
+            const result = currentResults[resultIndex];
+            const resultId = result.content; // Use content as unique identifier
+            
+            if (pinnedResults.has(resultId)) {
+                pinnedResults.delete(resultId);
+                // Also remove from current results if it was pinned
+                currentResults = currentResults.filter(r => r.content !== resultId);
+            } else {
+                pinnedResults.add(resultId);
+            }
+            
+            displaySuggestions();
+        }
+
+        // Display search results
+        function displaySuggestions() {
+            const container = document.getElementById('suggestionsContainer');
+            
+            // Combine pinned results with current results
+            const pinnedResultsArray = Array.from(pinnedResults).map(content => ({
+                content: content,
+                score: 1.0, // Show pinned items as 100% relevant
+                source_title: 'Pinned',
+                structure_path: '',
+                isPinned: true
+            }));
+            
+            // Filter out any current results that are already pinned
+            const unpinnedCurrentResults = currentResults.filter(result => 
+                !pinnedResults.has(result.content)
+            );
+            
+            const allResults = [...pinnedResultsArray, ...unpinnedCurrentResults];
+            
+            if (allResults.length === 0) {
+                container.innerHTML = '<div class="empty-state">No relevant sources found for this context</div>';
+                return;
+            }
+
+            container.innerHTML = allResults.map((result, index) => {
+                const isPinned = result.isPinned || pinnedResults.has(result.content);
+                
+                return `
+                    <div class="suggestion-item ${isPinned ? 'pinned' : ''}">
+                        <div class="suggestion-score">${(result.score * 100).toFixed(0)}% match</div>
+                        <div class="suggestion-content">${result.content}</div>
+                        <div class="suggestion-source">${result.source_title} • ${result.structure_path || ''}</div>
+                        <div class="actions">
+                            <button class="action-btn" onclick="copyToClipboard('${result.content.replace(/'/g, "\\'")}')">
+                                📋 Copy
+                            </button>
+                            <button class="action-btn ${isPinned ? 'pinned' : ''}" onclick="togglePinByContent('${result.content.replace(/'/g, "\\'")}')">
+                                ${isPinned ? '📌 Unpin' : '📍 Pin'}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Toggle pin by content (for easier handling)
+        function togglePinByContent(content) {
+            if (pinnedResults.has(content)) {
+                pinnedResults.delete(content);
+            } else {
+                pinnedResults.add(content);
+            }
+            
+            displaySuggestions();
+        }
+
+        // Copy to clipboard
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                // Simple feedback - could enhance with toast notification
+                console.log('Copied to clipboard');
+            });
+        }
+
+        // Update word count
+        function updateWordCount() {
+            const editor = document.getElementById('editor');
+            const text = editor.value;
+            const words = text.trim().length > 0 ? text.trim().split(/\s+/).length : 0;
+            document.getElementById('wordCount').textContent = `${words} words`;
+        }
+
+        // Initialize project from URL parameters
+        function initializeProject() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const projectTitle = urlParams.get('title');
+            const projectId = urlParams.get('project');
+            
+            if (projectTitle) {
+                document.querySelector('.document-title').value = projectTitle;
+            }
+            
+            // Could load project content from database/localStorage here
+            // For now, just update the title
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            updateWordCount();
+            initializeProject();
+            
+            // Set up editor change tracking
+            const editor = document.getElementById('editor');
+            editor.addEventListener('input', handleEditorChange);
+        });
+    </script>
+</body>
+</html>
