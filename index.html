@@ -212,6 +212,105 @@
             border-color: #3b82f6;
             background: #f0f9ff;
         }
+
+        .source-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .source-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .source-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .source-icon {
+            width: 32px;
+            height: 32px;
+            background: #f1f5f9;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+
+        .source-info {
+            flex: 1;
+        }
+
+        .source-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 2px;
+        }
+
+        .source-author {
+            font-size: 12px;
+            color: #64748b;
+        }
+
+        .status-badge {
+            background: #10b981;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .status-badge.processing {
+            background: #fbbf24;
+        }
+
+        .status-badge.error {
+            background: #ef4444;
+        }
+
+        .source-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .source-action-btn {
+            flex: 1;
+            background: none;
+            border: 1px solid #e2e8f0;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .source-action-btn:hover {
+            background: #f1f5f9;
+            border-color: #3b82f6;
+            color: #3b82f6;
+        }
+
+        .source-action-btn.delete {
+            color: #ef4444;
+            border-color: #fecaca;
+        }
+
+        .source-action-btn.delete:hover {
+            background: #fef2f2;
+            border-color: #ef4444;
+        }
     </style>
 </head>
 <body>
@@ -324,7 +423,7 @@
                 <input type="text" class="search-input" placeholder="Search notes..." id="notes-search">
                 
                 <div class="empty-state">
-                    <div class="empty-icon"></div>
+                    <div class="empty-icon">📝</div>
                     <div class="empty-title">No notes yet</div>
                     <div class="empty-description">Search or start writing to see relevant notes</div>
                 </div>
@@ -351,74 +450,33 @@ In examining this more closely, we must consider how grace operates in the life 
         const API_BASE = 'http://localhost:3001';
         let selectedFile = null;
         
+        // Panel switching function
         function switchToPanel(panelName, element) {
-            console.log('Switching to:', panelName);
+            console.log('Switching to panel:', panelName);
             
-            // Update nav
+            // Update navigation active state
             document.querySelectorAll('.nav-item').forEach(item => {
                 item.classList.remove('active');
             });
             element.classList.add('active');
             
-            // Update panels
+            // Update panel visibility
             document.querySelectorAll('.panel').forEach(panel => {
                 panel.classList.remove('active');
             });
-            document.getElementById(panelName + '-panel').classList.add('active');
+            
+            const targetPanel = document.getElementById(panelName + '-panel');
+            if (targetPanel) {
+                targetPanel.classList.add('active');
+                console.log('Successfully switched to:', panelName);
+            } else {
+                console.error('Panel not found:', panelName + '-panel');
+            }
             
             // Load sources when switching to library
             if (panelName === 'library') {
+                console.log('Loading library sources...');
                 loadSourcesFromBackend();
-            }
-        }
-        
-        async function loadSourcesFromBackend() {
-            const sourcesList = document.getElementById('sources-list');
-            
-            try {
-                console.log('Loading sources from backend...');
-                const response = await fetch(`${API_BASE}/sources`);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                
-                const sources = await response.json();
-                console.log('Loaded sources:', sources);
-                
-                // Clear existing content
-                sourcesList.innerHTML = '';
-                
-                if (sources.length === 0) {
-                    sourcesList.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-icon"></div>
-                            <div class="empty-title">No sources yet</div>
-                            <div class="empty-description">Upload your first source to get started</div>
-                        </div>
-                    `;
-                } else {
-                    sources.forEach(source => {
-                        addSourceToUI({
-                            id: source.id,
-                            title: source.title,
-                            author: source.author,
-                            source_type: source.source_type,
-                            status: 'completed',
-                            chunks_created: source.chunk_count
-                        });
-                    });
-                }
-                
-            } catch (error) {
-                console.error('Error loading sources:', error);
-                sourcesList.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">⚠️</div>
-                        <div class="empty-title">Connection Error</div>
-                        <div class="empty-description">Could not load sources. Is your backend running?</div>
-                    </div>
-                `;
             }
         }
         
@@ -436,33 +494,6 @@ In examining this more closely, we must consider how grace operates in the life 
             document.getElementById('upload-btn').disabled = true;
             selectedFile = null;
         }
-        
-        // File input handling
-        document.addEventListener('DOMContentLoaded', function() {
-            const fileInput = document.getElementById('file-input');
-            const dropArea = document.querySelector('.file-drop-area');
-            
-            fileInput.addEventListener('change', function(e) {
-                handleFileSelection(e.target.files[0]);
-            });
-            
-            // Drag and drop handlers
-            dropArea.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                dropArea.classList.add('dragover');
-            });
-            
-            dropArea.addEventListener('dragleave', function(e) {
-                e.preventDefault();
-                dropArea.classList.remove('dragover');
-            });
-            
-            dropArea.addEventListener('drop', function(e) {
-                e.preventDefault();
-                dropArea.classList.remove('dragover');
-                handleFileSelection(e.dataTransfer.files[0]);
-            });
-        });
         
         function handleFileSelection(file) {
             if (!file) return;
@@ -509,10 +540,8 @@ In examining this more closely, we must consider how grace operates in the life 
             statusDiv.innerHTML = '<span style="color: #3b82f6;">Starting upload...</span>';
             
             try {
-                // Read file content
                 const content = await readFileContent(selectedFile);
                 
-                // Determine file type from extension
                 const fileName = selectedFile.name.toLowerCase();
                 let sourceType = 'txt';
                 if (fileName.endsWith('.json')) {
@@ -521,19 +550,18 @@ In examining this more closely, we must consider how grace operates in the life 
                     sourceType = 'pdf';
                 }
                 
-                // Immediately add source to the UI with "Processing" status
+                const tempId = 'temp-' + Date.now();
+                
                 addSourceToUI({
-                    id: 'temp-' + Date.now(),
+                    id: tempId,
                     title: title,
                     author: author || 'Unknown Author',
                     source_type: sourceType,
                     status: 'processing'
                 });
                 
-                // Hide upload form immediately
                 hideUploadInterface();
                 
-                // Start the actual upload in the background
                 const response = await fetch(`${API_BASE}/upload-source`, {
                     method: 'POST',
                     headers: {
@@ -555,8 +583,7 @@ In examining this more closely, we must consider how grace operates in the life 
                 const result = await response.json();
                 console.log('Upload successful:', result);
                 
-                // Update the source status to completed
-                updateSourceStatus('temp-' + Date.now(), {
+                updateSourceStatus(tempId, {
                     id: result.source_id,
                     chunks_created: result.chunks_created,
                     status: 'completed'
@@ -564,8 +591,7 @@ In examining this more closely, we must consider how grace operates in the life 
                 
             } catch (error) {
                 console.error('Upload error:', error);
-                // Update the source status to error
-                updateSourceStatus('temp-' + Date.now(), {
+                updateSourceStatus(tempId, {
                     status: 'error',
                     error: error.message
                 });
@@ -575,137 +601,30 @@ In examining this more closely, we must consider how grace operates in the life 
             }
         }
         
-        function addSourceToUI(source) {
-            console.log('Using NEW addSourceToUI function - version 2');
-            console.log('Received source data:', source);
-            
-            const sourcesList = document.getElementById('sources-list');
-            console.log('Found sources list element:', sourcesList);
-            
-            // Remove "No sources yet" message if it exists
-            const emptyState = sourcesList.querySelector('.empty-state');
-            if (emptyState) {
-                console.log('Removing empty state');
-                emptyState.remove();
-            }
-            
-            const statusBadge = getStatusBadge(source.status);
-            const icon = getSourceIcon(source.source_type);
-            
-            console.log('About to create source card for:', source.title);
-            
-            const sourceCard = document.createElement('div');
-            sourceCard.className = 'source-card';
-            sourceCard.id = `source-${source.id}`;
-            sourceCard.innerHTML = `
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
-                    <div style="width: 32px; height: 32px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 16px;">
-                        ${icon}
-                    </div>
-                    <div style="flex: 1;">
-                        <div style="font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 2px;">${source.title}</div>
-                        <div style="font-size: 12px; color: #64748b;">${source.author}</div>
-                    </div>
-                    ${statusBadge}
-                </div>
-                <div class="source-actions" style="display: ${source.status === 'processing' ? 'none' : 'flex'}; gap: 8px; margin-top: 8px;">
-                    <button style="flex: 1; background: none; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 4px; font-size: 12px; color: #64748b; cursor: pointer;" onclick="alert('View notes for: ${source.title}')">View Notes</button>
-                    <button style="flex: 1; background: none; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 4px; font-size: 12px; color: #64748b; cursor: pointer;" onclick="alert('Details for: ${source.title}')">Details</button>
-                    <button style="flex: 1; background: none; border: 1px solid #e2e8f0; padding: 6px 12px; border-radius: 4px; font-size: 12px; color: #64748b; cursor: pointer;" onclick="alert('Open: ${source.title}')">Open</button>
-                </div>
-            `;
-
-            sourcesList.insertBefore(sourceCard, sourcesList.firstChild);
-            console.log('Inserted source card for:', source.title);
-            
-            sourcesList.insertBefore(sourceCard, sourcesList.firstChild);
-        }
-        
-        function updateSourceStatus(tempId, updateData) {
-            const sourceCard = document.getElementById(`source-${tempId}`);
-            if (!sourceCard) return;
-            
-            // Update the ID if we have a real source ID now
-            if (updateData.id && updateData.id !== tempId) {
-                sourceCard.id = `source-${updateData.id}`;
-            }
-            
-            // Update status badge
-            const statusBadge = getStatusBadge(updateData.status, updateData);
-            const existingBadge = sourceCard.querySelector('.status-badge');
-            if (existingBadge) {
-                existingBadge.outerHTML = statusBadge;
-            }
-            
-            // Show/hide actions based on status
-            const actionsDiv = sourceCard.querySelector('.source-actions');
-            if (actionsDiv) {
-                actionsDiv.style.display = updateData.status === 'completed' ? 'flex' : 'none';
-            }
-        }
-        
-        function getStatusBadge(status, data = {}) {
-            switch (status) {
-                case 'processing':
-                    return '<div class="status-badge" style="background: #fbbf24; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">Processing...</div>';
-                case 'completed':
-                    return `<div class="status-badge" style="background: #10b981; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">${data.chunks_created || 0} chunks</div>`;
-                case 'error':
-                    return '<div class="status-badge" style="background: #ef4444; color: white; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600;">Error</div>';
-                default:
-                    return '';
-            }
-        }
-        
-        function getSourceIcon(sourceType) {
-            switch (sourceType) {
-                case 'txt': return '📄';
-                case 'json': return '🧠';
-                case 'pdf': return '📕';
-                default: return '📄';
-            }
-        }
-        
         async function deleteSource(sourceId, sourceTitle) {
-            // Confirm deletion
-            if (!confirm(`Are you sure you want to delete "${sourceTitle}"?\n\nThis will permanently remove the source and all its embeddings from your database.`)) {
+            if (!confirm(`Are you sure you want to delete "${sourceTitle}"?`)) {
                 return;
             }
             
             const sourceCard = document.getElementById(`source-${sourceId}`);
             if (sourceCard) {
-                // Show deleting state
                 sourceCard.style.opacity = '0.5';
                 sourceCard.style.pointerEvents = 'none';
-                
-                // Update the card to show deleting status
-                const actions = sourceCard.querySelector('.source-actions');
-                if (actions) {
-                    actions.innerHTML = '<div style="text-align: center; color: #ef4444; font-size: 11px; padding: 8px;">Deleting...</div>';
-                }
             }
             
             try {
-                console.log(`Deleting source: ${sourceId}`);
-                
                 const response = await fetch(`${API_BASE}/sources/${sourceId}`, {
                     method: 'DELETE'
                 });
                 
                 if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Delete failed: ${response.status} - ${errorText}`);
+                    throw new Error(`Delete failed: ${response.status}`);
                 }
                 
-                const result = await response.json();
-                console.log('Delete successful:', result);
-                
-                // Remove the card from the UI
                 if (sourceCard) {
                     sourceCard.remove();
                 }
                 
-                // Check if we need to show empty state
                 const sourcesList = document.getElementById('sources-list');
                 if (sourcesList.children.length === 0) {
                     sourcesList.innerHTML = `
@@ -719,27 +638,144 @@ In examining this more closely, we must consider how grace operates in the life 
                 
             } catch (error) {
                 console.error('Delete error:', error);
-                
-                // Restore the card state
                 if (sourceCard) {
                     sourceCard.style.opacity = '1';
                     sourceCard.style.pointerEvents = 'auto';
-                    
-                    // Show error message
-                    const actions = sourceCard.querySelector('.source-actions');
-                    if (actions) {
-                        actions.innerHTML = `
-                            <div style="text-align: center; color: #ef4444; font-size: 11px; padding: 8px;">
-                                Delete failed: ${error.message}
-                            </div>
-                        `;
-                        
-                        // Reload the source actions after 3 seconds
-                        setTimeout(() => {
-                            loadSourcesFromBackend();
-                        }, 3000);
-                    }
                 }
+            }
+        }
+        
+        async function loadSourcesFromBackend() {
+            const sourcesList = document.getElementById('sources-list');
+            
+            try {
+                const response = await fetch(`${API_BASE}/sources`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+                
+                const sources = await response.json();
+                sourcesList.innerHTML = '';
+                
+                if (sources.length === 0) {
+                    sourcesList.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">📚</div>
+                            <div class="empty-title">No sources yet</div>
+                            <div class="empty-description">Upload your first source to get started</div>
+                        </div>
+                    `;
+                } else {
+                    sources.forEach(source => {
+                        addSourceToUI({
+                            id: source.id,
+                            title: source.title,
+                            author: source.author,
+                            source_type: source.source_type,
+                            status: 'completed',
+                            chunks_created: source.chunk_count
+                        });
+                    });
+                }
+                
+            } catch (error) {
+                console.error('Error loading sources:', error);
+                sourcesList.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">⚠️</div>
+                        <div class="empty-title">Connection Error</div>
+                        <div class="empty-description">Could not load sources. Is your backend running?</div>
+                    </div>
+                `;
+            }
+        }
+        
+        function addSourceToUI(source) {
+            const sourcesList = document.getElementById('sources-list');
+            
+            const emptyState = sourcesList.querySelector('.empty-state');
+            if (emptyState) {
+                emptyState.remove();
+            }
+            
+            const sourceCard = document.createElement('div');
+            sourceCard.className = 'source-card';
+            sourceCard.id = `source-${source.id}`;
+            
+            const statusBadge = getStatusBadge(source.status, source);
+            const icon = getSourceIcon(source.source_type);
+            
+            sourceCard.innerHTML = `
+                <div class="source-header">
+                    <div class="source-icon">${icon}</div>
+                    <div class="source-info">
+                        <div class="source-title">${source.title}</div>
+                        <div class="source-author">${source.author}</div>
+                    </div>
+                    ${statusBadge}
+                </div>
+                <div class="source-actions" style="display: ${source.status === 'processing' ? 'none' : 'flex'};">
+                    <button class="source-action-btn" onclick="alert('View notes for: ${source.title}')">Notes</button>
+                    <button class="source-action-btn" onclick="alert('Details for: ${source.title}')">Details</button>
+                    <button class="source-action-btn delete" onclick="deleteSource('${source.id}', '${source.title}')">Delete</button>
+                </div>
+            `;
+
+            sourcesList.insertBefore(sourceCard, sourcesList.firstChild);
+        }
+        
+        function updateSourceStatus(tempId, updateData) {
+            const sourceCard = document.getElementById(`source-${tempId}`);
+            if (!sourceCard) return;
+            
+            if (updateData.id && updateData.id !== tempId) {
+                sourceCard.id = `source-${updateData.id}`;
+            }
+            
+            if (updateData.status) {
+                const statusBadge = getStatusBadge(updateData.status, updateData);
+                const existingBadge = sourceCard.querySelector('.status-badge');
+                if (existingBadge) {
+                    existingBadge.outerHTML = statusBadge;
+                }
+            }
+            
+            const actionsDiv = sourceCard.querySelector('.source-actions');
+            if (actionsDiv && updateData.status) {
+                actionsDiv.style.display = updateData.status === 'completed' ? 'flex' : 'none';
+            }
+        }
+        
+        function getStatusBadge(status, data = {}) {
+            let badgeClass = 'status-badge';
+            let badgeText = '';
+            
+            switch (status) {
+                case 'processing':
+                    badgeClass += ' processing';
+                    badgeText = 'Processing...';
+                    break;
+                case 'completed':
+                    badgeText = `${data.chunks_created || 0} chunks`;
+                    break;
+                case 'error':
+                    badgeClass += ' error';
+                    badgeText = 'Error';
+                    break;
+                default:
+                    return '';
+            }
+            
+            return `<div class="${badgeClass}">${badgeText}</div>`;
+        }
+        
+        function getSourceIcon(sourceType) {
+            switch (sourceType) {
+                case 'txt': return '📄';
+                case 'json': return '🧠';
+                case 'pdf': return '📕';
+                default: return '📄';
             }
         }
         
@@ -748,11 +784,45 @@ In examining this more closely, we must consider how grace operates in the life 
                 const reader = new FileReader();
                 reader.onload = (e) => resolve(e.target.result);
                 reader.onerror = (e) => reject(new Error('Failed to read file'));
-                reader.readAsText(file);
-            });
-        }
+                reader.readAsText(file);  // <- This line needs the closing parenthesis
+    });
+}
+// File input handling
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.getElementById('file-input');
+            const dropArea = document.querySelector('.file-drop-area');
+            
+            if (fileInput && dropArea) {
+                fileInput.addEventListener('change', function(e) {
+                    handleFileSelection(e.target.files[0]);
+                });
+                
+                dropArea.addEventListener('dragover', function(e) {
+                    e.preventDefault();
+                    dropArea.classList.add('dragover');
+                });
+                
+                dropArea.addEventListener('dragleave', function(e) {
+                    e.preventDefault();
+                    dropArea.classList.remove('dragover');
+                });
+                
+                dropArea.addEventListener('drop', function(e) {
+                    e.preventDefault();
+                    dropArea.classList.remove('dragover');
+                    handleFileSelection(e.dataTransfer.files[0]);
+                });
+            }
+            
+            console.log('Research Assistant loaded successfully');
+        });
         
-        console.log('Research Assistant loaded successfully');
+        // THE SIMPLE FIX: Make functions globally accessible
+        window.switchToPanel = switchToPanel;
+        window.showUploadInterface = showUploadInterface;
+        window.hideUploadInterface = hideUploadInterface;
+        window.processUpload = processUpload;
+        window.deleteSource = deleteSource;
     </script>
 </body>
 </html>
