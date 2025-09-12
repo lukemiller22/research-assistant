@@ -409,9 +409,9 @@ app.get('/sources', async (req, res) => {
 // Delete source endpoint - FIXED VERSION
 app.delete('/sources/:id', async (req, res) => {
   try {
-    const sourceId = parseInt(req.params.id);
+    const sourceId = req.params.id;
     
-    if (!sourceId || isNaN(sourceId)) {
+    if (!sourceId) {
       return res.status(400).json({ error: 'Invalid source ID' });
     }
 
