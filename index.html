@@ -311,6 +311,94 @@
             background: #fef2f2;
             border-color: #ef4444;
         }
+
+        /* New styles for notes */
+        .note-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .note-card:hover {
+            border-color: #3b82f6;
+            background: #f0f9ff;
+        }
+
+        .note-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .note-relevance {
+            background: #3b82f6;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: 600;
+        }
+
+        .note-source {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .note-content {
+            font-size: 14px;
+            line-height: 1.5;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+
+        .note-path {
+            font-size: 11px;
+            color: #9ca3af;
+            font-style: italic;
+        }
+
+        .loading-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 16px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #e2e8f0;
+            border-top: 2px solid #3b82f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .context-indicator {
+            background: #fef3c7;
+            border: 1px solid #f59e0b;
+            color: #92400e;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            margin-bottom: 16px;
+            display: none;
+        }
+
+        .context-indicator.active {
+            display: block;
+        }
     </style>
 </head>
 <body>
@@ -417,15 +505,24 @@
         <!-- Notes Panel -->
         <div class="panel" id="notes-panel">
             <div class="panel-header">
-                <div class="panel-title">Notes</div>
+                <div class="panel-title">Related Notes</div>
             </div>
             <div class="panel-content">
-                <input type="text" class="search-input" placeholder="Search notes..." id="notes-search">
+                <div class="context-indicator" id="context-indicator">
+                    No context selected. Click in your document to see related notes.
+                </div>
                 
-                <div class="empty-state">
-                    <div class="empty-icon">📝</div>
-                    <div class="empty-title">No notes yet</div>
-                    <div class="empty-description">Search or start writing to see relevant notes</div>
+                <div id="notes-loading" class="loading-indicator" style="display: none;">
+                    <div class="spinner"></div>
+                    Finding related content...
+                </div>
+                
+                <div style="margin-top: 20px;" id="notes-list">
+                    <div class="empty-state">
+                        <div class="empty-icon">📝</div>
+                        <div class="empty-title">No notes yet</div>
+                        <div class="empty-description">Position your cursor in the document to see related notes</div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -449,6 +546,8 @@ In examining this more closely, we must consider how grace operates in the life 
     <script>
         const API_BASE = 'http://localhost:3001';
         let selectedFile = null;
+        let searchTimeout = null;
+        let lastSearchContext = '';
         
         // Panel switching function
         function switchToPanel(panelName, element) {
@@ -478,6 +577,114 @@ In examining this more closely, we must consider how grace operates in the life 
                 console.log('Loading library sources...');
                 loadSourcesFromBackend();
             }
+        }
+        
+        // Auto-generate notes based on cursor context
+        function updateNotesBasedOnContext() {
+            const editor = document.getElementById('document-editor');
+            const cursorPosition = editor.selectionStart;
+            const text = editor.value;
+            
+            // Get context around cursor (previous and next 100 characters)
+            const contextStart = Math.max(0, cursorPosition - 100);
+            const contextEnd = Math.min(text.length, cursorPosition + 100);
+            const context = text.substring(contextStart, contextEnd).trim();
+            
+            // Skip if context is too short or hasn't changed significantly
+            if (context.length < 20 || context === lastSearchContext) {
+                return;
+            }
+            
+            lastSearchContext = context;
+            
+            // Update context indicator
+            const contextIndicator = document.getElementById('context-indicator');
+            contextIndicator.textContent = `Searching for: "${context.substring(0, 50)}${context.length > 50 ? '...' : ''}"`;
+            contextIndicator.classList.add('active');
+            
+            // Show loading state
+            const loadingDiv = document.getElementById('notes-loading');
+            const notesList = document.getElementById('notes-list');
+            loadingDiv.style.display = 'flex';
+            
+            // Clear previous timeout
+            if (searchTimeout) {
+                clearTimeout(searchTimeout);
+            }
+            
+            // Debounce the search
+            searchTimeout = setTimeout(() => {
+                searchRelatedNotes(context);
+            }, 500);
+        }
+        
+        async function searchRelatedNotes(query) {
+            try {
+                const response = await fetch(`${API_BASE}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        limit: 5
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Search failed: ${response.status}`);
+                }
+                
+                const results = await response.json();
+                displayRelatedNotes(results);
+                
+            } catch (error) {
+                console.error('Search error:', error);
+                displayNoNotes('Search failed. Is your backend running?');
+            } finally {
+                document.getElementById('notes-loading').style.display = 'none';
+            }
+        }
+        
+        function displayRelatedNotes(results) {
+            const notesList = document.getElementById('notes-list');
+            
+            if (results.length === 0) {
+                displayNoNotes('No related content found for the current context.');
+                return;
+            }
+            
+            notesList.innerHTML = '';
+            
+            results.forEach((result, index) => {
+                const noteCard = document.createElement('div');
+                noteCard.className = 'note-card';
+                
+                // Calculate relevance percentage
+                const relevancePercent = Math.round(result.score * 100);
+                
+                noteCard.innerHTML = `
+                    <div class="note-header">
+                        <div class="note-relevance">${relevancePercent}%</div>
+                        <div class="note-source">${result.source_title}</div>
+                    </div>
+                    <div class="note-content">${result.content}</div>
+                    <div class="note-path">${result.structure_path}</div>
+                `;
+                
+                notesList.appendChild(noteCard);
+            });
+        }
+        
+        function displayNoNotes(message) {
+            const notesList = document.getElementById('notes-list');
+            notesList.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">📝</div>
+                    <div class="empty-title">No related notes</div>
+                    <div class="empty-description">${message}</div>
+                </div>
+            `;
         }
         
         function showUploadInterface() {
@@ -784,14 +991,17 @@ In examining this more closely, we must consider how grace operates in the life 
                 const reader = new FileReader();
                 reader.onload = (e) => resolve(e.target.result);
                 reader.onerror = (e) => reject(new Error('Failed to read file'));
-                reader.readAsText(file);  // <- This line needs the closing parenthesis
-    });
-}
-// File input handling
+                reader.readAsText(file);
+            });
+        }
+
+        // Event listeners
         document.addEventListener('DOMContentLoaded', function() {
             const fileInput = document.getElementById('file-input');
             const dropArea = document.querySelector('.file-drop-area');
+            const editor = document.getElementById('document-editor');
             
+            // File input handling
             if (fileInput && dropArea) {
                 fileInput.addEventListener('change', function(e) {
                     handleFileSelection(e.target.files[0]);
@@ -814,10 +1024,20 @@ In examining this more closely, we must consider how grace operates in the life 
                 });
             }
             
+            // Editor cursor/selection change handling
+            if (editor) {
+                editor.addEventListener('click', updateNotesBasedOnContext);
+                editor.addEventListener('keyup', updateNotesBasedOnContext);
+                editor.addEventListener('selectionchange', updateNotesBasedOnContext);
+                
+                // Initial context update
+                setTimeout(updateNotesBasedOnContext, 1000);
+            }
+            
             console.log('Research Assistant loaded successfully');
         });
         
-        // THE SIMPLE FIX: Make functions globally accessible
+        // Make functions globally accessible
         window.switchToPanel = switchToPanel;
         window.showUploadInterface = showUploadInterface;
         window.hideUploadInterface = hideUploadInterface;
