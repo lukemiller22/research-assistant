@@ -1,0 +1,1285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f8fafc;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .main-container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Left Sidebar */
+        .sidebar {
+            width: 240px;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            transition: margin-left 0.3s ease;
+        }
+        
+        .sidebar.hidden {
+            margin-left: -240px;
+        }
+        
+        .sidebar-header {
+            padding: 20px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .logo {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 16px;
+        }
+        
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #64748b;
+        }
+        
+        .user-avatar {
+            width: 24px;
+            height: 24px;
+            background: #3b82f6;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        
+        .sidebar-nav {
+            flex: 1;
+            padding: 20px 0;
+        }
+        
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 20px;
+            color: #64748b;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .nav-item:hover, .nav-item.active {
+            background: #f1f5f9;
+            color: #3b82f6;
+        }
+        
+        .nav-icon {
+            width: 18px;
+            height: 18px;
+        }
+        
+        /* Content Panels */
+        .content-panels {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+        }
+        
+        .panel {
+            width: 400px;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            transition: margin-left 0.3s ease;
+        }
+        
+        .panel.hidden {
+            margin-left: -400px;
+        }
+        
+        .panel-header {
+            padding: 20px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: between;
+        }
+        
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+            flex: 1;
+        }
+        
+        .panel-actions {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .panel-btn {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        
+        .panel-btn:hover {
+            background: #2563eb;
+        }
+        
+        .panel-btn.secondary {
+            background: #f1f5f9;
+            color: #64748b;
+        }
+        
+        .panel-btn.secondary:hover {
+            background: #e2e8f0;
+        }
+        
+        .panel-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        
+        /* Search Bar */
+        .search-container {
+            position: relative;
+            margin-bottom: 20px;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 10px 40px 10px 16px;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            font-size: 14px;
+            outline: none;
+        }
+        
+        .search-input:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .search-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #9ca3af;
+            width: 16px;
+            height: 16px;
+        }
+        
+        /* Project Cards */
+        .project-card {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .project-card:hover {
+            border-color: #3b82f6;
+            background: white;
+        }
+        
+        .project-card.active {
+            border-color: #3b82f6;
+            background: #f0f9ff;
+        }
+        
+        .project-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 4px;
+        }
+        
+        .project-meta {
+            font-size: 12px;
+            color: #64748b;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        /* Source Cards */
+        .source-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+        }
+        
+        .source-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+        }
+        
+        .source-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        
+        .source-icon {
+            width: 32px;
+            height: 32px;
+            background: #f1f5f9;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+        }
+        
+        .source-info {
+            flex: 1;
+        }
+        
+        .source-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 2px;
+        }
+        
+        .source-author {
+            font-size: 12px;
+            color: #64748b;
+        }
+        
+        .source-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+        
+        .source-btn {
+            flex: 1;
+            background: none;
+            border: 1px solid #e2e8f0;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .source-btn:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+        
+        /* Note Cards */
+        .note-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-left: 3px solid #3b82f6;
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.2s ease;
+        }
+        
+        .note-card:hover {
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+        }
+        
+        .note-card.saved {
+            border-left-color: #059669;
+        }
+        
+        .note-card.hidden {
+            opacity: 0.5;
+        }
+        
+        .note-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+        
+        .note-score {
+            background: #dbeafe;
+            color: #1d4ed8;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .note-actions {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .note-action {
+            background: none;
+            border: none;
+            padding: 4px;
+            color: #64748b;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        
+        .note-action:hover {
+            background: #f1f5f9;
+            color: #3b82f6;
+        }
+        
+        .note-action.active {
+            color: #3b82f6;
+            background: #f0f9ff;
+        }
+        
+        .note-content {
+            color: #374151;
+            line-height: 1.5;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+        
+        .note-citation {
+            color: #6b7280;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        /* Writing Panel */
+        .writing-panel {
+            flex: 1;
+            background: white;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .writing-header {
+            padding: 20px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .writing-title {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1e293b;
+            border: none;
+            outline: none;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+        
+        .writing-meta {
+            color: #64748b;
+            font-size: 14px;
+        }
+        
+        .writing-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .editor {
+            width: 100%;
+            border: none;
+            outline: none;
+            font-size: 16px;
+            line-height: 1.6;
+            color: #334155;
+            resize: none;
+            min-height: 100%;
+            font-family: Georgia, 'Times New Roman', serif;
+        }
+        
+        /* Filters */
+        .filter-container {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .filter-btn {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #64748b;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .filter-btn:hover, .filter-btn.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        
+        /* Empty States */
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #9ca3af;
+        }
+        
+        .empty-icon {
+            font-size: 32px;
+            margin-bottom: 12px;
+            opacity: 0.5;
+        }
+        
+        .empty-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+        }
+        
+        .empty-description {
+            font-size: 14px;
+        }
+        
+        /* Source Detail Panel */
+        .source-detail-panel {
+            width: 300px;
+            background: white;
+            border-left: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+            position: absolute;
+            right: 0;
+            top: 0;
+            height: 100%;
+            z-index: 100;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        
+        .source-detail-panel.visible {
+            transform: translateX(0);
+        }
+        
+        .detail-header {
+            padding: 20px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .detail-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .close-btn {
+            background: none;
+            border: none;
+            padding: 4px;
+            color: #64748b;
+            cursor: pointer;
+        }
+        
+        .detail-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            font-size: 12px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        /* Source View Panel */
+        .source-view-panel {
+            width: 50%;
+            background: white;
+            border-right: 1px solid #e2e8f0;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .source-view-header {
+            padding: 20px;
+            border-bottom: 1px solid #f1f5f9;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        
+        .source-view-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e293b;
+        }
+        
+        .source-view-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            font-family: Georgia, 'Times New Roman', serif;
+            line-height: 1.6;
+            color: #374151;
+        }
+        
+        /* Toggle Button */
+        .sidebar-toggle {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            padding: 8px;
+            cursor: pointer;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            z-index: 200;
+            display: none;
+        }
+        
+        .sidebar-toggle.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <!-- Sidebar Toggle (shown when sidebar is hidden) -->
+        <button class="sidebar-toggle" id="sidebarToggle" onclick="toggleSidebar()">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+        </button>
+        
+        <!-- Left Sidebar -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">Research Assistant</div>
+                <div class="user-info">
+                    <div class="user-avatar">LM</div>
+                    <span>Luke Miller</span>
+                </div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <a class="nav-item active" data-panel="projects" onclick="showPanel('projects')">
+                    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Projects
+                </a>
+                <a class="nav-item" data-panel="library" onclick="showPanel('library')">
+                    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    Library
+                </a>
+                <a class="nav-item" data-panel="notes" onclick="showPanel('notes')">
+                    <svg class="nav-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    Notes
+                </a>
+            </nav>
+        </div>
+        
+        <div class="content-panels">
+            <!-- Projects Panel -->
+            <div class="panel" id="projectsPanel">
+                <div class="panel-header">
+                    <div class="panel-title">Projects</div>
+                    <div class="panel-actions">
+                        <button class="panel-btn" onclick="createNewProject()">+ New</button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="search-container">
+                        <input type="text" class="search-input" placeholder="Search projects..." id="projectSearch">
+                        <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    
+                    <div id="projectsList">
+                        <div class="project-card active" onclick="selectProject(this, 'grace-sovereignty')">
+                            <div class="project-title">Grace and Sovereignty: A Reformed Perspective</div>
+                            <div class="project-meta">
+                                <span>2,847 words</span>
+                                <span>Draft</span>
+                            </div>
+                        </div>
+                        
+                        <div class="project-card" onclick="selectProject(this, 'problem-evil')">
+                            <div class="project-title">The Problem of Evil in Christian Apologetics</div>
+                            <div class="project-meta">
+                                <span>1,523 words</span>
+                                <span>Review</span>
+                            </div>
+                        </div>
+                        
+                        <div class="project-card" onclick="selectProject(this, 'digital-ethics')">
+                            <div class="project-title">Christian Ethics in the Digital Age</div>
+                            <div class="project-meta">
+                                <span>892 words</span>
+                                <span>Draft</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Library Panel -->
+            <div class="panel hidden" id="libraryPanel">
+                <div class="panel-header">
+                    <div class="panel-title">Library</div>
+                    <div class="panel-actions">
+                        <button class="panel-btn" onclick="showUploadModal()">+ Upload</button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="search-container">
+                        <input type="text" class="search-input" placeholder="Search sources..." id="librarySearch">
+                        <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    
+                    <div id="sourcesList">
+                        <div class="source-card">
+                            <div class="source-header">
+                                <div class="source-icon">📄</div>
+                                <div class="source-info">
+                                    <div class="source-title">Calvin's Institutes</div>
+                                    <div class="source-author">John Calvin</div>
+                                </div>
+                            </div>
+                            <div class="source-actions">
+                                <button class="source-btn" onclick="viewNotes(1)">View Notes</button>
+                                <button class="source-btn" onclick="showSourceDetails(1)">Details</button>
+                                <button class="source-btn" onclick="openSource(1)">Open</button>
+                            </div>
+                        </div>
+                        
+                        <div class="source-card">
+                            <div class="source-header">
+                                <div class="source-icon">🧠</div>
+                                <div class="source-info">
+                                    <div class="source-title">Reformed Theology Notes</div>
+                                    <div class="source-author">Personal Research</div>
+                                </div>
+                            </div>
+                            <div class="source-actions">
+                                <button class="source-btn" onclick="viewNotes(2)">View Notes</button>
+                                <button class="source-btn" onclick="showSourceDetails(2)">Details</button>
+                                <button class="source-btn" onclick="openSource(2)">Open</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Notes Panel -->
+            <div class="panel hidden" id="notesPanel">
+                <div class="panel-header">
+                    <div class="panel-title">Notes</div>
+                    <div class="panel-actions">
+                        <button class="panel-btn secondary" id="clearFilters" onclick="clearNoteFilters()" style="display: none;">Clear Filters</button>
+                    </div>
+                </div>
+                <div class="panel-content">
+                    <div class="search-container">
+                        <input type="text" class="search-input" placeholder="Search notes..." id="notesSearch">
+                        <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                        </svg>
+                    </div>
+                    
+                    <div class="filter-container">
+                        <button class="filter-btn active" data-filter="all" onclick="filterNotes('all')">All</button>
+                        <button class="filter-btn" data-filter="saved" onclick="filterNotes('saved')">Saved</button>
+                        <button class="filter-btn" data-filter="hidden" onclick="filterNotes('hidden')">Hidden</button>
+                    </div>
+                    
+                    <div id="notesList">
+                        <div class="empty-state">
+                            <div class="empty-icon">📝</div>
+                            <div class="empty-title">No notes yet</div>
+                            <div class="empty-description">Search or start writing to see relevant notes</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Writing Panel -->
+        <div class="writing-panel" id="writingPanel">
+            <div class="writing-header">
+                <input type="text" class="writing-title" placeholder="Untitled Document" value="Grace and Sovereignty: A Reformed Perspective">
+                <div class="writing-meta">Draft • Last modified: Today</div>
+            </div>
+            <div class="writing-content">
+                <textarea class="editor" id="editor" placeholder="Start writing your research paper, sermon, or theological reflection...">The concept of grace in Christian theology has been debated for centuries. Calvin's understanding differs significantly from the Catholic interpretation, particularly in his emphasis on unmerited favor and divine sovereignty.
+
+This fundamental doctrine shapes how we approach both salvation and sanctification. The reformers argued that grace cannot be earned through works, but is freely given by God to the elect.
+
+In examining this more closely, we must consider how grace operates in the life of the believer. Calvin taught that grace is not merely God's attitude toward us, but His active power working within us to transform our hearts and minds according to His will.</textarea>
+            </div>
+        </div>
+        
+        <!-- Source Detail Panel -->
+        <div class="source-detail-panel" id="sourceDetailPanel">
+            <div class="detail-header">
+                <div class="detail-title">Source Details</div>
+                <button class="close-btn" onclick="hideSourceDetails()">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="detail-content">
+                <div class="form-group">
+                    <label class="form-label">Title</label>
+                    <input type="text" class="form-input" id="detailTitle" value="Calvin's Institutes">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Author</label>
+                    <input type="text" class="form-input" id="detailAuthor" value="John Calvin">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Type</label>
+                    <input type="text" class="form-input" id="detailType" value="PDF" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Date Added</label>
+                    <input type="text" class="form-input" id="detailDate" value="January 12, 2024" readonly>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Notes Count</label>
+                    <input type="text" class="form-input" id="detailNotes" value="247 notes" readonly>
+                </div>
+                <button class="panel-btn" onclick="saveSourceDetails()">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+        let currentPanel = 'projects';
+        let currentNoteFilter = 'all';
+        let noteFilters = { source: null, project: null, author: null };
+        
+        // Panel Management
+        function showPanel(panelName) {
+            // Update nav active state
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            document.querySelector(`[data-panel="${panelName}"]`).classList.add('active');
+            
+            // Hide all panels
+            document.querySelectorAll('.panel').forEach(panel => {
+                panel.classList.add('hidden');
+            });
+            
+            // Show selected panel
+            document.getElementById(`${panelName}Panel`).classList.remove('hidden');
+            
+            currentPanel = panelName;
+            
+            // Load panel-specific data
+            if (panelName === 'library') {
+                loadSources();
+            } else if (panelName === 'notes') {
+                loadNotes();
+            }
+        }
+        
+        // Sidebar Toggle
+        function toggleSidebar() {
+            const sidebar = document.getElementById('sidebar');
+            const toggle = document.getElementById('sidebarToggle');
+            
+            sidebar.classList.toggle('hidden');
+            toggle.classList.toggle('show');
+        }
+        
+        // Project Management
+        function selectProject(element, projectId) {
+            document.querySelectorAll('.project-card').forEach(card => {
+                card.classList.remove('active');
+            });
+            element.classList.add('active');
+            
+            // Load project content
+            loadProject(projectId);
+        }
+        
+        function createNewProject() {
+            const title = prompt('Enter project title:');
+            if (title) {
+                const projectId = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+                // Create new project card
+                const projectsList = document.getElementById('projectsList');
+                const newCard = document.createElement('div');
+                newCard.className = 'project-card';
+                newCard.onclick = () => selectProject(newCard, projectId);
+                newCard.innerHTML = `
+                    <div class="project-title">${title}</div>
+                    <div class="project-meta">
+                        <span>0 words</span>
+                        <span>Draft</span>
+                    </div>
+                `;
+                projectsList.insertBefore(newCard, projectsList.firstChild);
+                selectProject(newCard, projectId);
+                
+                // Update writing panel
+                document.querySelector('.writing-title').value = title;
+                document.getElementById('editor').value = '';
+            }
+        }
+        
+        function loadProject(projectId) {
+            // In a real app, this would load from database
+            console.log('Loading project:', projectId);
+        }
+        
+        // Source Management
+        async function loadSources() {
+            try {
+                const response = await fetch(`${API_BASE}/sources`);
+                const sources = await response.json();
+                displaySources(sources);
+            } catch (error) {
+                console.error('Error loading sources:', error);
+            }
+        }
+        
+        function displaySources(sources) {
+            const container = document.getElementById('sourcesList');
+            
+            if (sources.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📚</div>
+                        <div class="empty-title">No sources yet</div>
+                        <div class="empty-description">Upload your first source to get started</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = sources.map(source => {
+                const icon = getSourceIcon(source.source_type);
+                return `
+                    <div class="source-card">
+                        <div class="source-header">
+                            <div class="source-icon">${icon}</div>
+                            <div class="source-info">
+                                <div class="source-title">${source.title}</div>
+                                <div class="source-author">${source.author || 'Unknown Author'}</div>
+                            </div>
+                        </div>
+                        <div class="source-actions">
+                            <button class="source-btn" onclick="viewNotes(${source.id})">View Notes</button>
+                            <button class="source-btn" onclick="showSourceDetails(${source.id})">Details</button>
+                            <button class="source-btn" onclick="openSource(${source.id})">Open</button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function getSourceIcon(sourceType) {
+            switch (sourceType) {
+                case 'txt': return '📄';
+                case 'pdf': return '📕';
+                case 'roam':
+                case 'json': return '🧠';
+                default: return '📄';
+            }
+        }
+        
+        function viewNotes(sourceId) {
+            // Filter notes by source
+            noteFilters.source = sourceId;
+            showPanel('notes');
+            updateNoteFilters();
+            loadNotes();
+        }
+        
+        function showSourceDetails(sourceId) {
+            // Show source detail panel
+            const panel = document.getElementById('sourceDetailPanel');
+            panel.classList.add('visible');
+            
+            // Load source details (in real app, fetch from API)
+            // For now, just show placeholder data
+        }
+        
+        function hideSourceDetails() {
+            document.getElementById('sourceDetailPanel').classList.remove('visible');
+        }
+        
+        function saveSourceDetails() {
+            // Save source details to backend
+            console.log('Saving source details...');
+            hideSourceDetails();
+        }
+        
+        function openSource(sourceId) {
+            // Hide sidebar and library panel
+            document.getElementById('sidebar').classList.add('hidden');
+            document.getElementById('sidebarToggle').classList.add('show');
+            
+            // Hide all content panels
+            document.querySelectorAll('.panel').forEach(panel => {
+                panel.classList.add('hidden');
+            });
+            
+            // Show source view panel
+            showSourceView(sourceId);
+        }
+        
+        function showSourceView(sourceId) {
+            // Create source view panel if it doesn't exist
+            let sourceViewPanel = document.getElementById('sourceViewPanel');
+            if (!sourceViewPanel) {
+                sourceViewPanel = document.createElement('div');
+                sourceViewPanel.id = 'sourceViewPanel';
+                sourceViewPanel.className = 'source-view-panel';
+                sourceViewPanel.innerHTML = `
+                    <div class="source-view-header">
+                        <div class="source-view-title">Calvin's Institutes</div>
+                        <button class="close-btn" onclick="closeSourceView()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="source-view-content" id="sourceViewContent">
+                        Loading source content...
+                    </div>
+                `;
+                
+                // Insert before writing panel
+                const writingPanel = document.getElementById('writingPanel');
+                writingPanel.parentNode.insertBefore(sourceViewPanel, writingPanel);
+                
+                // Adjust writing panel width
+                writingPanel.style.width = '50%';
+            }
+            
+            // Load source content (in real app, fetch from API)
+            setTimeout(() => {
+                document.getElementById('sourceViewContent').innerHTML = `
+                    <h2>Chapter 1: The Knowledge of God the Creator</h2>
+                    
+                    <p>Without knowledge of self there is no knowledge of God. Nearly all the wisdom we possess, that is to say, true and sound wisdom, consists of two parts: the knowledge of God and of ourselves.</p>
+                    
+                    <p>But, while joined by many bonds, which one precedes and brings forth the other is not easy to discern. In the first place, no one can look upon himself without immediately turning his thoughts to the contemplation of God, in whom he "lives and moves and has his being" (Acts 17:28).</p>
+                    
+                    <p>For, quite clearly, the mighty gifts with which we are endowed are hardly from ourselves; indeed, our very being is nothing but subsistence in the one God. Then, by these benefits shed like dew from heaven upon us, we are led as by rivulets to the spring itself.</p>
+                    
+                    <h3>The Duplex Knowledge of God</h3>
+                    
+                    <p>Again, it is certain that man never achieves a clear knowledge of himself unless he has first looked upon God's face, and then descends from contemplating him to scrutinize himself.</p>
+                    
+                    <p>For we always seem to ourselves righteous and upright and wise and holy—this pride is innate in all of us—unless by clear proofs we stand convinced of our own unrighteousness, foulness, folly, and impurity.</p>
+                    
+                    <p>Moreover, we are not thus convinced if we look merely to ourselves and not also to the Lord, who is the one lawful standard by which this judgment must be measured.</p>
+                `;
+            }, 500);
+        }
+        
+        function closeSourceView() {
+            // Remove source view panel
+            const sourceViewPanel = document.getElementById('sourceViewPanel');
+            if (sourceViewPanel) {
+                sourceViewPanel.remove();
+            }
+            
+            // Reset writing panel width
+            document.getElementById('writingPanel').style.width = '';
+            
+            // Show sidebar and panels
+            document.getElementById('sidebar').classList.remove('hidden');
+            document.getElementById('sidebarToggle').classList.remove('show');
+            showPanel('library');
+        }
+        
+        // Note Management
+        async function loadNotes() {
+            const container = document.getElementById('notesList');
+            
+            // Show loading state
+            container.innerHTML = '<div class="empty-state"><div class="empty-title">Loading notes...</div></div>';
+            
+            // Simulate API call with sample data
+            setTimeout(() => {
+                const sampleNotes = [
+                    {
+                        id: 1,
+                        content: "Calvin taught that grace is not merely God's attitude toward us, but His active power working within us to transform our hearts and minds according to His will.",
+                        source: "Calvin's Institutes",
+                        author: "John Calvin",
+                        score: 0.95,
+                        saved: false,
+                        hidden: false
+                    },
+                    {
+                        id: 2,
+                        content: "The reformers argued that grace cannot be earned through works, but is freely given by God to the elect.",
+                        source: "Reformed Theology Notes",
+                        author: "Personal Research",
+                        score: 0.87,
+                        saved: true,
+                        hidden: false
+                    },
+                    {
+                        id: 3,
+                        content: "Divine sovereignty means that God exercises supreme authority over all creation, including the salvation of individuals.",
+                        source: "Calvin's Institutes",
+                        author: "John Calvin",
+                        score: 0.82,
+                        saved: false,
+                        hidden: false
+                    }
+                ];
+                
+                displayNotes(sampleNotes);
+            }, 500);
+        }
+        
+        function displayNotes(notes) {
+            const container = document.getElementById('notesList');
+            
+            if (notes.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📝</div>
+                        <div class="empty-title">No notes found</div>
+                        <div class="empty-description">Try adjusting your search or filters</div>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = notes.map(note => `
+                <div class="note-card ${note.saved ? 'saved' : ''} ${note.hidden ? 'hidden' : ''}" data-note-id="${note.id}">
+                    <div class="note-header">
+                        <div class="note-score">${Math.round(note.score * 100)}% match</div>
+                        <div class="note-actions">
+                            <button class="note-action ${note.saved ? 'active' : ''}" onclick="toggleNoteSaved(${note.id})" title="Save note">
+                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                                </svg>
+                            </button>
+                            <button class="note-action ${note.hidden ? 'active' : ''}" onclick="toggleNoteHidden(${note.id})" title="Hide note">
+                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L12 12l-2.122-2.122m0 0l-3.75-3.75M15.121 14.121L12 12m3.121 2.121l3.75 3.75" />
+                                </svg>
+                            </button>
+                            <button class="note-action" onclick="viewInSource(${note.id})" title="View in source">
+                                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="note-content">${note.content}</div>
+                    <div class="note-citation">${note.source} • ${note.author}</div>
+                </div>
+            `).join('');
+        }
+        
+        function filterNotes(filter) {
+            // Update filter buttons
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+            
+            currentNoteFilter = filter;
+            loadNotes(); // Reload with filter
+        }
+        
+        function toggleNoteSaved(noteId) {
+            // Toggle saved state
+            const button = document.querySelector(`[data-note-id="${noteId}"] .note-action[title="Save note"]`);
+            const card = document.querySelector(`[data-note-id="${noteId}"]`);
+            
+            button.classList.toggle('active');
+            card.classList.toggle('saved');
+        }
+        
+        function toggleNoteHidden(noteId) {
+            // Toggle hidden state
+            const button = document.querySelector(`[data-note-id="${noteId}"] .note-action[title="Hide note"]`);
+            const card = document.querySelector(`[data-note-id="${noteId}"]`);
+            
+            button.classList.toggle('active');
+            card.classList.toggle('hidden');
+        }
+        
+        function viewInSource(noteId) {
+            // Open source view and scroll to note location
+            console.log('View note in source:', noteId);
+            // This would open the source and highlight the specific note
+        }
+        
+        function updateNoteFilters() {
+            const hasFilters = noteFilters.source || noteFilters.project || noteFilters.author;
+            const clearButton = document.getElementById('clearFilters');
+            
+            if (hasFilters) {
+                clearButton.style.display = 'block';
+            } else {
+                clearButton.style.display = 'none';
+            }
+        }
+        
+        function clearNoteFilters() {
+            noteFilters = { source: null, project: null, author: null };
+            updateNoteFilters();
+            loadNotes();
+        }
+        
+        // Search functionality
+        document.getElementById('projectSearch').addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase();
+            document.querySelectorAll('.project-card').forEach(card => {
+                const title = card.querySelector('.project-title').textContent.toLowerCase();
+                card.style.display = title.includes(query) ? 'block' : 'none';
+            });
+        });
+        
+        document.getElementById('librarySearch').addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase();
+            document.querySelectorAll('.source-card').forEach(card => {
+                const title = card.querySelector('.source-title').textContent.toLowerCase();
+                const author = card.querySelector('.source-author').textContent.toLowerCase();
+                card.style.display = (title.includes(query) || author.includes(query)) ? 'block' : 'none';
+            });
+        });
+        
+        document.getElementById('notesSearch').addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase();
+            if (query.length > 2) {
+                // Perform semantic search
+                performNoteSearch(query);
+            } else if (query.length === 0) {
+                loadNotes();
+            }
+        });
+        
+        async function performNoteSearch(query) {
+            try {
+                const response = await fetch(`${API_BASE}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        query: query, 
+                        limit: 10 
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Search failed');
+                }
+
+                const results = await response.json();
+                const notes = results.map(result => ({
+                    id: result.source_id + '-' + result.chunk_index,
+                    content: result.content,
+                    source: result.source_title,
+                    author: result.author || 'Unknown',
+                    score: result.score,
+                    saved: false,
+                    hidden: false
+                }));
+                
+                displayNotes(notes);
+            } catch (error) {
+                console.error('Search error:', error);
+            }
+        }
+        
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', function() {
+            showPanel('projects');
+            loadSources();
+        });
+        
+        // Mock upload modal function
+        function showUploadModal() {
+            alert('Upload modal would open here. This would be the same upload functionality from the library.html file.');
+        }
+    </script>
+</body>
+</html>
+            
