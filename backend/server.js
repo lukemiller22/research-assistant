@@ -204,8 +204,8 @@ function processBlocks(blocks, chunks, pageTitle, parentPath = '', startIndex = 
         .replace(/#\[\[([^\]]+)\]\]/g, '#$1') // Convert #[[tag]] to #tag
         .trim();
       
-      // Only add non-empty blocks
-      if (blockText.length > 0) {
+      // Skip blocks that are 15 characters or less
+      if (blockText.length > 15) {
         const structurePath = parentPath 
           ? `${pageTitle} > ${parentPath} > Block ${index + 1}`
           : `${pageTitle} > Block ${index + 1}`;
