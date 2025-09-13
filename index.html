@@ -136,12 +136,16 @@
         
         .search-input {
             width: 100%;
-            padding: 10px 16px;
+            padding: 12px 16px;
             border: 1px solid #d1d5db;
             border-radius: 8px;
             font-size: 14px;
             outline: none;
             margin-bottom: 20px;
+            min-height: 90px;
+            resize: vertical;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.5;
         }
         
         .search-input:focus {
@@ -312,6 +316,35 @@
             border-color: #ef4444;
         }
 
+        /* Auto-search toggle styles */
+        .auto-search-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+            padding: 8px 0;
+        }
+
+        .auto-search-toggle label {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            color: #64748b;
+            cursor: pointer;
+        }
+
+        .auto-search-toggle input[type="checkbox"] {
+            margin: 0;
+        }
+
+        .auto-search-status {
+            font-size: 12px;
+            color: #10b981;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
         /* New styles for note cards and filters */
         .notes-filters {
             display: flex;
@@ -409,6 +442,39 @@
         .icon {
             width: 16px;
             height: 16px;
+        }
+
+        /* Load more button styles */
+        .load-more-container {
+            text-align: center;
+            padding: 20px 0;
+            border-top: 1px solid #f1f5f9;
+            margin-top: 16px;
+        }
+
+        .load-more-btn {
+            background: #f8fafc;
+            color: #64748b;
+            border: 1px solid #e2e8f0;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .load-more-btn:hover {
+            background: #f1f5f9;
+            border-color: #3b82f6;
+            color: #3b82f6;
+        }
+
+        .load-more-btn:disabled {
+            background: #f8fafc;
+            color: #94a3b8;
+            cursor: not-allowed;
+            opacity: 0.6;
         }
     </style>
 </head>
@@ -519,7 +585,20 @@
                 <div class="panel-title">Notes</div>
             </div>
             <div class="panel-content">
-                <input type="text" class="search-input" placeholder="Search notes..." id="notes-search" onkeyup="performSearch()">
+                <textarea class="search-input" placeholder="Search your sources with a detailed query or question...
+
+Example: 'What does Calvin say about predestination and free will? How does this relate to the concept of grace?'" id="notes-search" oninput="performSearch()"></textarea>
+                
+                <!-- Auto-search Toggle -->
+                <div class="auto-search-toggle">
+                    <label>
+                        <input type="checkbox" id="auto-search-toggle" checked onchange="toggleAutoSearch()">
+                        <span>Auto-search while writing</span>
+                    </label>
+                    <div id="auto-search-status" class="auto-search-status">
+                        ✓ Auto-searching...
+                    </div>
+                </div>
                 
                 <!-- Filter Options -->
                 <div class="notes-filters">
@@ -562,9 +641,16 @@ In examining this more closely, we must consider how grace operates in the life 
         const API_BASE = 'http://localhost:3001';
         let selectedFile = null;
         let allNotes = [];
+        let displayedNotes = [];
         let savedNotes = new Set(); // Track notes saved to current project
         let currentProject = 'Grace and Sovereignty: A Reformed Perspective';
         let availableSources = new Set();
+        let autoSearchEnabled = true;
+        let autoSearchTimeout = null;
+        let currentSearchQuery = '';
+        let searchLimit = 10;
+        let searchOffset = 0;
+        let hasMoreResults = false;
         
         // Panel switching function
         function switchToPanel(panelName, element) {
@@ -596,14 +682,104 @@ In examining this more closely, we must consider how grace operates in the life 
             }
         }
         
-        // Search functionality
-        async function performSearch() {
-            const query = document.getElementById('notes-search').value.trim();
+        // Auto-search toggle functionality
+        function toggleAutoSearch() {
+            autoSearchEnabled = document.getElementById('auto-search-toggle').checked;
+            console.log('Auto-search', autoSearchEnabled ? 'enabled' : 'disabled');
             
-            if (query.length < 3) {
-                displayEmptyState();
-                return;
+            // Clear any pending auto-search
+            if (autoSearchTimeout) {
+                clearTimeout(autoSearchTimeout);
+                autoSearchTimeout = null;
             }
+            
+            // Hide status indicator when disabled
+            const statusDiv = document.getElementById('auto-search-status');
+            if (!autoSearchEnabled) {
+                statusDiv.style.opacity = '0';
+            }
+        }
+        
+        function showAutoSearchStatus() {
+            if (!autoSearchEnabled) return;
+            
+            const statusDiv = document.getElementById('auto-search-status');
+            statusDiv.style.opacity = '1';
+            
+            // Hide after 2 seconds
+            setTimeout(() => {
+                statusDiv.style.opacity = '0';
+            }, 2000);
+        }
+        
+        function extractMeaningfulText(text) {
+            // Split into sentences and clean up
+            const sentences = text.split(/[.!?]+/)
+                .map(s => s.trim())
+                .filter(s => s.length > 0);
+            
+            if (sentences.length === 0) return '';
+            
+            // Get the last few sentences that are substantial
+            const lastSentences = sentences.slice(-3);
+            const meaningfulSentences = lastSentences.filter(s => {
+                // Filter out very short sentences or common phrases
+                return s.length > 15 && 
+                       !s.match(/^(the|this|that|in|on|at|for|with|by)\s+/i) &&
+                       s.split(' ').length > 3;
+            });
+            
+            if (meaningfulSentences.length === 0) {
+                // Fallback to the last sentence if it's decent length
+                const lastSentence = sentences[sentences.length - 1];
+                return lastSentence && lastSentence.length > 10 ? lastSentence : '';
+            }
+            
+            // Return the most recent meaningful sentence
+            return meaningfulSentences[meaningfulSentences.length - 1];
+        }
+        
+        function handleEditorInput() {
+            if (!autoSearchEnabled) return;
+            
+            // Clear any existing timeout
+            if (autoSearchTimeout) {
+                clearTimeout(autoSearchTimeout);
+            }
+            
+            // Set a new timeout
+            autoSearchTimeout = setTimeout(() => {
+                const editor = document.getElementById('document-editor');
+                const text = editor.value.trim();
+                
+                if (text.length < 50) return; // Need minimum content
+                
+                const searchQuery = extractMeaningfulText(text);
+                
+                if (searchQuery && searchQuery.length > 20) {
+                    console.log('Auto-searching for:', searchQuery);
+                    
+                    // Update search input to show what we're searching for
+                    const searchInput = document.getElementById('notes-search');
+                    if (!searchInput.value || searchInput.value.startsWith('[Auto]')) {
+                        searchInput.value = '[Auto] ' + searchQuery.substring(0, 80) + (searchQuery.length > 80 ? '...' : '');
+                    }
+                    
+                    // Show status indicator
+                    showAutoSearchStatus();
+                    
+                    // Perform the search
+                    performAutoSearch(searchQuery);
+                }
+            }, 2500); // Wait 2.5 seconds after user stops typing
+        }
+        
+        async function performAutoSearch(query) {
+            if (!autoSearchEnabled) return;
+            
+            // Reset for new auto-search
+            searchOffset = 0;
+            currentSearchQuery = query;
             
             try {
                 const response = await fetch(`${API_BASE}/search`, {
@@ -613,7 +789,7 @@ In examining this more closely, we must consider how grace operates in the life 
                     },
                     body: JSON.stringify({
                         query: query,
-                        limit: 10
+                        limit: 24 // Request more results for better pagination (show 8, keep 16 cached)
                     })
                 });
                 
@@ -622,13 +798,146 @@ In examining this more closely, we must consider how grace operates in the life 
                 }
                 
                 const results = await response.json();
+                
+                // Store all results and show first 8
                 allNotes = results;
+                displayedNotes = results.slice(0, 8);
+                searchOffset = 8;
+                hasMoreResults = results.length > 8;
+                
                 updateAvailableSources(results);
+                applyFilters();
+                
+            } catch (error) {
+                console.error('Auto-search error:', error);
+            }
+        }
+        
+        // Search functionality with debouncing for textarea
+        async function performSearch() {
+            // Clear existing timeout
+            if (performSearch.timeout) {
+                clearTimeout(performSearch.timeout);
+            }
+            
+            // Debounce the search for textarea input
+            performSearch.timeout = setTimeout(async () => {
+                const searchInput = document.getElementById('notes-search');
+                let query = searchInput.value.trim();
+                
+                // Remove [Auto] prefix if present
+                if (query.startsWith('[Auto] ')) {
+                    query = query.substring(7);
+                }
+                
+                if (query.length < 3) {
+                    displayEmptyState();
+                    return;
+                }
+                
+                // Reset for new search
+                searchOffset = 0;
+                currentSearchQuery = query;
+                
+                await executeSearch(query, searchLimit, searchOffset, true);
+            }, 500); // 500ms debounce for manual typing
+        }
+        
+        async function executeSearch(query, limit, offset = 0, isNewSearch = false) {
+            try {
+                const response = await fetch(`${API_BASE}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        limit: limit + 1 // Get one extra to check if there are more results
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Search failed: ${response.status}`);
+                }
+                
+                const results = await response.json();
+                
+                // Check if there are more results
+                hasMoreResults = results.length > limit;
+                
+                // Remove the extra result if present
+                if (hasMoreResults) {
+                    results.pop();
+                }
+                
+                if (isNewSearch) {
+                    allNotes = results;
+                    displayedNotes = [...results];
+                    updateAvailableSources(results);
+                } else {
+                    // This is a "load more" operation
+                    const newResults = results.slice(offset);
+                    allNotes = [...allNotes, ...newResults];
+                    displayedNotes = [...displayedNotes, ...newResults];
+                    updateAvailableSources(allNotes);
+                }
+                
                 applyFilters();
                 
             } catch (error) {
                 console.error('Search error:', error);
                 displayErrorState();
+            }
+        }
+        
+        async function loadMoreResults() {
+            if (!hasMoreResults || !currentSearchQuery) return;
+            
+            const loadMoreBtn = document.getElementById('load-more-btn');
+            if (loadMoreBtn) {
+                loadMoreBtn.disabled = true;
+                loadMoreBtn.textContent = 'Loading...';
+            }
+            
+            searchOffset = displayedNotes.length;
+            
+            try {
+                const response = await fetch(`${API_BASE}/search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        query: currentSearchQuery,
+                        limit: searchLimit + 1 // Get one extra to check if there are more results
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Load more failed: ${response.status}`);
+                }
+                
+                const results = await response.json();
+                const newResults = results.slice(searchOffset);
+                
+                // Check if there are more results after these
+                hasMoreResults = results.length > searchOffset + searchLimit;
+                
+                // Take only the new results we need
+                const resultsToAdd = newResults.slice(0, searchLimit);
+                
+                allNotes = [...allNotes, ...resultsToAdd];
+                displayedNotes = [...displayedNotes, ...resultsToAdd];
+                updateAvailableSources(allNotes);
+                applyFilters();
+                
+            } catch (error) {
+                console.error('Load more error:', error);
+            } finally {
+                if (loadMoreBtn) {
+                    loadMoreBtn.disabled = false;
+                    loadMoreBtn.textContent = 'Load More';
+                }
             }
         }
         
@@ -657,7 +966,7 @@ In examining this more closely, we must consider how grace operates in the life 
             const sourceFilter = document.getElementById('source-filter').value;
             const projectFilter = document.getElementById('project-filter').value;
             
-            let filteredNotes = [...allNotes];
+            let filteredNotes = [...displayedNotes]; // Use displayedNotes instead of allNotes
             
             // Apply source filter
             if (sourceFilter) {
@@ -686,6 +995,18 @@ In examining this more closely, we must consider how grace operates in the life 
                 const noteCard = createNoteCard(note);
                 resultsContainer.appendChild(noteCard);
             });
+            
+            // Add load more button if there are more results available
+            if (hasMoreResults && !document.getElementById('source-filter').value && !document.getElementById('project-filter').value) {
+                const loadMoreContainer = document.createElement('div');
+                loadMoreContainer.className = 'load-more-container';
+                loadMoreContainer.innerHTML = `
+                    <button class="load-more-btn" id="load-more-btn" onclick="loadMoreResults()">
+                        Load More Results
+                    </button>
+                `;
+                resultsContainer.appendChild(loadMoreContainer);
+            }
         }
         
         function createNoteCard(note) {
@@ -780,25 +1101,6 @@ In examining this more closely, we must consider how grace operates in the life 
                     <div class="empty-description">Could not perform search. Please try again.</div>
                 </div>
             `;
-        }
-        
-        function handleEditorInput() {
-            // Debounce the search to avoid too many API calls
-            clearTimeout(handleEditorInput.timeout);
-            handleEditorInput.timeout = setTimeout(() => {
-                const editor = document.getElementById('document-editor');
-                const text = editor.value;
-                
-                // Extract the last sentence or phrase being typed
-                const sentences = text.split(/[.!?]+/);
-                const lastSentence = sentences[sentences.length - 1].trim();
-                
-                if (lastSentence.length > 20) {
-                    // Auto-search based on what the user is writing
-                    document.getElementById('notes-search').value = lastSentence.substring(0, 100);
-                    performSearch();
-                }
-            }, 2000);
         }
         
         function showUploadInterface() {
@@ -1146,11 +1448,13 @@ In examining this more closely, we must consider how grace operates in the life 
         window.processUpload = processUpload;
         window.deleteSource = deleteSource;
         window.performSearch = performSearch;
-        window.debounceSearch = debounceSearch;
+        window.performAutoSearch = performAutoSearch;
+        window.loadMoreResults = loadMoreResults;
         window.applyFilters = applyFilters;
         window.toggleSaveNote = toggleSaveNote;
         window.showSourceNotes = showSourceNotes;
         window.handleEditorInput = handleEditorInput;
+        window.toggleAutoSearch = toggleAutoSearch;
     </script>
 </body>
 </html>
