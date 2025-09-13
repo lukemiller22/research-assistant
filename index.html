@@ -312,9 +312,30 @@
             border-color: #ef4444;
         }
 
-        /* New styles for notes */
+        /* New styles for note cards and filters */
+        .notes-filters {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .filter-select {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+            color: #374151;
+        }
+
+        .filter-select:focus {
+            border-color: #3b82f6;
+            outline: none;
+        }
+
         .note-card {
-            background: #f8fafc;
+            background: white;
             border: 1px solid #e2e8f0;
             border-radius: 8px;
             padding: 16px;
@@ -324,80 +345,70 @@
 
         .note-card:hover {
             border-color: #3b82f6;
-            background: #f0f9ff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
 
         .note-header {
             display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 8px;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 12px;
         }
 
-        .note-relevance {
-            background: #3b82f6;
-            color: white;
-            padding: 2px 6px;
-            border-radius: 12px;
-            font-size: 10px;
+        .note-meta {
+            flex: 1;
+        }
+
+        .note-score {
+            font-size: 12px;
             font-weight: 600;
+            color: #059669;
+            margin-bottom: 4px;
         }
 
         .note-source {
             font-size: 12px;
             color: #64748b;
-            font-weight: 500;
+        }
+
+        .note-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .note-action-btn {
+            width: 28px;
+            height: 28px;
+            border: none;
+            background: #f8fafc;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #64748b;
+            transition: all 0.2s ease;
+        }
+
+        .note-action-btn:hover {
+            background: #e2e8f0;
+            color: #3b82f6;
+        }
+
+        .note-action-btn.saved {
+            background: #dcfce7;
+            color: #059669;
         }
 
         .note-content {
             font-size: 14px;
             line-height: 1.5;
             color: #374151;
-            margin-bottom: 8px;
         }
 
-        .note-path {
-            font-size: 11px;
-            color: #9ca3af;
-            font-style: italic;
-        }
-
-        .loading-indicator {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 16px;
-            color: #64748b;
-            font-size: 14px;
-        }
-
-        .spinner {
+        .icon {
             width: 16px;
             height: 16px;
-            border: 2px solid #e2e8f0;
-            border-top: 2px solid #3b82f6;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .context-indicator {
-            background: #fef3c7;
-            border: 1px solid #f59e0b;
-            color: #92400e;
-            padding: 8px 12px;
-            border-radius: 6px;
-            font-size: 12px;
-            margin-bottom: 16px;
-            display: none;
-        }
-
-        .context-indicator.active {
-            display: block;
         }
     </style>
 </head>
@@ -505,23 +516,27 @@
         <!-- Notes Panel -->
         <div class="panel" id="notes-panel">
             <div class="panel-header">
-                <div class="panel-title">Related Notes</div>
+                <div class="panel-title">Notes</div>
             </div>
             <div class="panel-content">
-                <div class="context-indicator" id="context-indicator">
-                    No context selected. Click in your document to see related notes.
+                <input type="text" class="search-input" placeholder="Search notes..." id="notes-search" onkeyup="performSearch()">
+                
+                <!-- Filter Options -->
+                <div class="notes-filters">
+                    <select class="filter-select" id="source-filter" onchange="applyFilters()">
+                        <option value="">All Sources</option>
+                    </select>
+                    <select class="filter-select" id="project-filter" onchange="applyFilters()">
+                        <option value="">All Notes</option>
+                        <option value="saved">Saved to Project</option>
+                    </select>
                 </div>
                 
-                <div id="notes-loading" class="loading-indicator" style="display: none;">
-                    <div class="spinner"></div>
-                    Finding related content...
-                </div>
-                
-                <div style="margin-top: 20px;" id="notes-list">
+                <div id="notes-results">
                     <div class="empty-state">
                         <div class="empty-icon">📝</div>
                         <div class="empty-title">No notes yet</div>
-                        <div class="empty-description">Position your cursor in the document to see related notes</div>
+                        <div class="empty-description">Search or start writing to see relevant notes</div>
                     </div>
                 </div>
             </div>
@@ -535,7 +550,7 @@
             <div class="writing-meta">Draft • Last modified: Today</div>
         </div>
         <div class="writing-content">
-            <textarea class="editor" placeholder="Start writing your research paper..." id="document-editor">The concept of grace in Christian theology has been debated for centuries. Calvin's understanding differs significantly from the Catholic interpretation, particularly in his emphasis on unmerited favor and divine sovereignty.
+            <textarea class="editor" placeholder="Start writing your research paper..." id="document-editor" oninput="handleEditorInput()">The concept of grace in Christian theology has been debated for centuries. Calvin's understanding differs significantly from the Catholic interpretation, particularly in his emphasis on unmerited favor and divine sovereignty.
 
 This fundamental doctrine shapes how we approach both salvation and sanctification. The reformers argued that grace cannot be earned through works, but is freely given by God to the elect.
 
@@ -546,8 +561,10 @@ In examining this more closely, we must consider how grace operates in the life 
     <script>
         const API_BASE = 'http://localhost:3001';
         let selectedFile = null;
-        let searchTimeout = null;
-        let lastSearchContext = '';
+        let allNotes = [];
+        let savedNotes = new Set(); // Track notes saved to current project
+        let currentProject = 'Grace and Sovereignty: A Reformed Perspective';
+        let availableSources = new Set();
         
         // Panel switching function
         function switchToPanel(panelName, element) {
@@ -579,46 +596,15 @@ In examining this more closely, we must consider how grace operates in the life 
             }
         }
         
-        // Auto-generate notes based on cursor context
-        function updateNotesBasedOnContext() {
-            const editor = document.getElementById('document-editor');
-            const cursorPosition = editor.selectionStart;
-            const text = editor.value;
+        // Search functionality
+        async function performSearch() {
+            const query = document.getElementById('notes-search').value.trim();
             
-            // Get context around cursor (previous and next 100 characters)
-            const contextStart = Math.max(0, cursorPosition - 100);
-            const contextEnd = Math.min(text.length, cursorPosition + 100);
-            const context = text.substring(contextStart, contextEnd).trim();
-            
-            // Skip if context is too short or hasn't changed significantly
-            if (context.length < 20 || context === lastSearchContext) {
+            if (query.length < 3) {
+                displayEmptyState();
                 return;
             }
             
-            lastSearchContext = context;
-            
-            // Update context indicator
-            const contextIndicator = document.getElementById('context-indicator');
-            contextIndicator.textContent = `Searching for: "${context.substring(0, 50)}${context.length > 50 ? '...' : ''}"`;
-            contextIndicator.classList.add('active');
-            
-            // Show loading state
-            const loadingDiv = document.getElementById('notes-loading');
-            const notesList = document.getElementById('notes-list');
-            loadingDiv.style.display = 'flex';
-            
-            // Clear previous timeout
-            if (searchTimeout) {
-                clearTimeout(searchTimeout);
-            }
-            
-            // Debounce the search
-            searchTimeout = setTimeout(() => {
-                searchRelatedNotes(context);
-            }, 500);
-        }
-        
-        async function searchRelatedNotes(query) {
             try {
                 const response = await fetch(`${API_BASE}/search`, {
                     method: 'POST',
@@ -627,7 +613,7 @@ In examining this more closely, we must consider how grace operates in the life 
                     },
                     body: JSON.stringify({
                         query: query,
-                        limit: 5
+                        limit: 10
                     })
                 });
                 
@@ -636,55 +622,183 @@ In examining this more closely, we must consider how grace operates in the life 
                 }
                 
                 const results = await response.json();
-                displayRelatedNotes(results);
+                allNotes = results;
+                updateAvailableSources(results);
+                applyFilters();
                 
             } catch (error) {
                 console.error('Search error:', error);
-                displayNoNotes('Search failed. Is your backend running?');
-            } finally {
-                document.getElementById('notes-loading').style.display = 'none';
+                displayErrorState();
             }
         }
         
-        function displayRelatedNotes(results) {
-            const notesList = document.getElementById('notes-list');
+        function updateAvailableSources(notes) {
+            const sourceFilter = document.getElementById('source-filter');
+            availableSources.clear();
             
-            if (results.length === 0) {
-                displayNoNotes('No related content found for the current context.');
-                return;
+            // Clear existing options except "All Sources"
+            while (sourceFilter.children.length > 1) {
+                sourceFilter.removeChild(sourceFilter.lastChild);
             }
             
-            notesList.innerHTML = '';
-            
-            results.forEach((result, index) => {
-                const noteCard = document.createElement('div');
-                noteCard.className = 'note-card';
-                
-                // Calculate relevance percentage
-                const relevancePercent = Math.round(result.score * 100);
-                
-                noteCard.innerHTML = `
-                    <div class="note-header">
-                        <div class="note-relevance">${relevancePercent}%</div>
-                        <div class="note-source">${result.source_title}</div>
-                    </div>
-                    <div class="note-content">${result.content}</div>
-                    <div class="note-path">${result.structure_path}</div>
-                `;
-                
-                notesList.appendChild(noteCard);
+            // Add unique sources
+            notes.forEach(note => {
+                if (!availableSources.has(note.source_title)) {
+                    availableSources.add(note.source_title);
+                    const option = document.createElement('option');
+                    option.value = note.source_title;
+                    option.textContent = note.source_title;
+                    sourceFilter.appendChild(option);
+                }
             });
         }
         
-        function displayNoNotes(message) {
-            const notesList = document.getElementById('notes-list');
-            notesList.innerHTML = `
+        function applyFilters() {
+            const sourceFilter = document.getElementById('source-filter').value;
+            const projectFilter = document.getElementById('project-filter').value;
+            
+            let filteredNotes = [...allNotes];
+            
+            // Apply source filter
+            if (sourceFilter) {
+                filteredNotes = filteredNotes.filter(note => note.source_title === sourceFilter);
+            }
+            
+            // Apply project filter
+            if (projectFilter === 'saved') {
+                filteredNotes = filteredNotes.filter(note => savedNotes.has(note.source_id + '-' + note.chunk_index));
+            }
+            
+            displayNotes(filteredNotes);
+        }
+        
+        function displayNotes(notes) {
+            const resultsContainer = document.getElementById('notes-results');
+            
+            if (!notes || notes.length === 0) {
+                displayEmptyState();
+                return;
+            }
+            
+            resultsContainer.innerHTML = '';
+            
+            notes.forEach(note => {
+                const noteCard = createNoteCard(note);
+                resultsContainer.appendChild(noteCard);
+            });
+        }
+        
+        function createNoteCard(note) {
+            const card = document.createElement('div');
+            card.className = 'note-card';
+            
+            const noteId = note.source_id + '-' + note.chunk_index;
+            const isSaved = savedNotes.has(noteId);
+            
+            // Calculate percentage score
+            const percentage = Math.round(note.score * 100);
+            
+            // Create author text if available
+            const authorText = note.author && note.author !== 'Unknown Author' ? ` by ${note.author}` : '';
+            
+            card.innerHTML = `
+                <div class="note-header">
+                    <div class="note-meta">
+                        <div class="note-score">${percentage}% match</div>
+                        <div class="note-source">${note.source_title}${authorText}</div>
+                    </div>
+                    <div class="note-actions">
+                        <button class="note-action-btn ${isSaved ? 'saved' : ''}" 
+                                onclick="toggleSaveNote('${noteId}')" 
+                                title="${isSaved ? 'Remove from project' : 'Save to project'}">
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                      d="${isSaved ? 'M5 13l4 4L19 7' : 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z'}" />
+                            </svg>
+                        </button>
+                        <button class="note-action-btn" 
+                                onclick="showSourceNotes('${note.source_title}')" 
+                                title="View all notes from this source">
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div class="note-content">${note.content}</div>
+            `;
+            
+            return card;
+        }
+        
+        function toggleSaveNote(noteId) {
+            if (savedNotes.has(noteId)) {
+                savedNotes.delete(noteId);
+            } else {
+                savedNotes.add(noteId);
+            }
+            
+            // Update the button appearance
+            const button = event.target.closest('.note-action-btn');
+            const isSaved = savedNotes.has(noteId);
+            
+            button.classList.toggle('saved', isSaved);
+            button.title = isSaved ? 'Remove from project' : 'Save to project';
+            
+            // Update the icon
+            const svg = button.querySelector('svg path');
+            svg.setAttribute('d', isSaved ? 'M5 13l4 4L19 7' : 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z');
+            
+            console.log(`Note ${noteId} ${isSaved ? 'saved to' : 'removed from'} project: ${currentProject}`);
+        }
+        
+        function showSourceNotes(sourceTitle) {
+            // Set the source filter and apply filters
+            document.getElementById('source-filter').value = sourceTitle;
+            applyFilters();
+            console.log(`Showing all notes from: ${sourceTitle}`);
+        }
+        
+        function displayEmptyState() {
+            const resultsContainer = document.getElementById('notes-results');
+            resultsContainer.innerHTML = `
                 <div class="empty-state">
                     <div class="empty-icon">📝</div>
-                    <div class="empty-title">No related notes</div>
-                    <div class="empty-description">${message}</div>
+                    <div class="empty-title">No notes yet</div>
+                    <div class="empty-description">Search or start writing to see relevant notes</div>
                 </div>
             `;
+        }
+        
+        function displayErrorState() {
+            const resultsContainer = document.getElementById('notes-results');
+            resultsContainer.innerHTML = `
+                <div class="empty-state">
+                    <div class="empty-icon">⚠️</div>
+                    <div class="empty-title">Search Error</div>
+                    <div class="empty-description">Could not perform search. Please try again.</div>
+                </div>
+            `;
+        }
+        
+        function handleEditorInput() {
+            // Debounce the search to avoid too many API calls
+            clearTimeout(handleEditorInput.timeout);
+            handleEditorInput.timeout = setTimeout(() => {
+                const editor = document.getElementById('document-editor');
+                const text = editor.value;
+                
+                // Extract the last sentence or phrase being typed
+                const sentences = text.split(/[.!?]+/);
+                const lastSentence = sentences[sentences.length - 1].trim();
+                
+                if (lastSentence.length > 20) {
+                    // Auto-search based on what the user is writing
+                    document.getElementById('notes-search').value = lastSentence.substring(0, 100);
+                    performSearch();
+                }
+            }, 2000);
         }
         
         function showUploadInterface() {
@@ -994,14 +1108,12 @@ In examining this more closely, we must consider how grace operates in the life 
                 reader.readAsText(file);
             });
         }
-
-        // Event listeners
+        
+        // File input handling
         document.addEventListener('DOMContentLoaded', function() {
             const fileInput = document.getElementById('file-input');
             const dropArea = document.querySelector('.file-drop-area');
-            const editor = document.getElementById('document-editor');
             
-            // File input handling
             if (fileInput && dropArea) {
                 fileInput.addEventListener('change', function(e) {
                     handleFileSelection(e.target.files[0]);
@@ -1024,16 +1136,6 @@ In examining this more closely, we must consider how grace operates in the life 
                 });
             }
             
-            // Editor cursor/selection change handling
-            if (editor) {
-                editor.addEventListener('click', updateNotesBasedOnContext);
-                editor.addEventListener('keyup', updateNotesBasedOnContext);
-                editor.addEventListener('selectionchange', updateNotesBasedOnContext);
-                
-                // Initial context update
-                setTimeout(updateNotesBasedOnContext, 1000);
-            }
-            
             console.log('Research Assistant loaded successfully');
         });
         
@@ -1043,6 +1145,12 @@ In examining this more closely, we must consider how grace operates in the life 
         window.hideUploadInterface = hideUploadInterface;
         window.processUpload = processUpload;
         window.deleteSource = deleteSource;
+        window.performSearch = performSearch;
+        window.debounceSearch = debounceSearch;
+        window.applyFilters = applyFilters;
+        window.toggleSaveNote = toggleSaveNote;
+        window.showSourceNotes = showSourceNotes;
+        window.handleEditorInput = handleEditorInput;
     </script>
 </body>
 </html>
