@@ -6,6 +6,8 @@ const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const { QdrantClient } = require('@qdrant/js-client-rest');
 const OpenAI = require('openai');
+const pdfParse = require('pdf-parse');
+const AdmZip = require('adm-zip');
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -27,6 +29,13 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+
+// Increase timeout for large file processing
+app.use((req, res, next) => {
+  req.setTimeout(10 * 60 * 1000); // 10 minutes
+  res.setTimeout(10 * 60 * 1000); // 10 minutes
+  next();
+});
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -268,13 +277,247 @@ function splitLongContent(content, maxTokens = 8000) {
   return chunks;
 }
 
+// ===== PDF PROCESSING FUNCTIONS =====
+
+async function processPDF(buffer) {
+  try {
+    const data = await pdfParse(buffer);
+    return {
+      content: data.text,
+      pages: data.numpages,
+      info: data.info
+    };
+  } catch (error) {
+    throw new Error(`PDF processing failed: ${error.message}`);
+  }
+}
+
+// ===== EPUB PROCESSING FUNCTIONS =====
+
+async function processEPUB(buffer) {
+  return new Promise((resolve, reject) => {
+    // Set a timeout for large files (5 minutes)
+    const timeout = setTimeout(() => {
+      reject(new Error('EPUB processing timeout - file too large or complex'));
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    try {
+      // For now, let's treat ePub as a ZIP file and extract text manually
+      // This is more reliable than the epub library
+      const AdmZip = require('adm-zip');
+      const zip = new AdmZip(buffer);
+      
+      let fullText = '';
+      let chapters = [];
+      let metadata = {
+        title: 'Untitled',
+        creator: 'Unknown Author',
+        language: 'en'
+      };
+      
+      // Extract all files from the ePub
+      const zipEntries = zip.getEntries();
+      
+      for (let i = 0; i < zipEntries.length; i++) {
+        const entry = zipEntries[i];
+        
+        // Look for HTML/XHTML files (main content)
+        if (entry.entryName.match(/\.(x?html?|xml)$/i) && !entry.entryName.includes('META-INF')) {
+          try {
+            const content = entry.getData().toString('utf8');
+            
+            // Extract text from HTML with better formatting
+            let cleanText = content
+              // Preserve paragraph breaks
+              .replace(/<\/p>/gi, '\n\n')
+              .replace(/<br\s*\/?>/gi, '\n')
+              .replace(/<\/div>/gi, '\n')
+              .replace(/<\/h[1-6]>/gi, '\n\n')
+              .replace(/<h[1-6][^>]*>/gi, '\n\n# ')
+              .replace(/<p[^>]*>/gi, '')
+              .replace(/<div[^>]*>/gi, '')
+              // Remove other HTML tags
+              .replace(/<[^>]*>/g, '')
+              // Clean up whitespace
+              .replace(/\n\s*\n\s*\n/g, '\n\n') // Multiple newlines to double newlines
+              .replace(/[ \t]+/g, ' ') // Multiple spaces to single space
+              .replace(/\n /g, '\n') // Remove leading spaces on new lines
+              .replace(/ \n/g, '\n') // Remove trailing spaces before newlines
+              .trim();
+            
+            if (cleanText.length > 100) { // Only include substantial content
+              const chapterTitle = entry.entryName.split('/').pop().replace(/\.(x?html?|xml)$/i, '');
+              chapters.push({
+                title: chapterTitle,
+                content: cleanText,
+                chapter_index: chapters.length
+              });
+              fullText += `\n\n# ${chapterTitle}\n\n${cleanText}`;
+            }
+          } catch (error) {
+            console.log(`Skipping file ${entry.entryName}: ${error.message}`);
+          }
+        }
+        
+        // Look for metadata files
+        if (entry.entryName.includes('metadata') || entry.entryName.includes('package.opf')) {
+          try {
+            const content = entry.getData().toString('utf8');
+            // Simple metadata extraction
+            const titleMatch = content.match(/<dc:title[^>]*>([^<]+)<\/dc:title>/i);
+            const creatorMatch = content.match(/<dc:creator[^>]*>([^<]+)<\/dc:creator>/i);
+            
+            if (titleMatch) metadata.title = titleMatch[1];
+            if (creatorMatch) metadata.creator = creatorMatch[1];
+          } catch (error) {
+            // Ignore metadata parsing errors
+          }
+        }
+      }
+      
+      // Limit total content size
+      if (fullText.length > 2000000) { // 2MB max
+        fullText = fullText.substring(0, 2000000) + '\n\n[Content truncated due to size]';
+      }
+      
+      if (fullText.length === 0) {
+        throw new Error('No readable content found in EPUB');
+      }
+      
+      clearTimeout(timeout);
+      resolve({
+        content: fullText.trim(),
+        chapters: chapters,
+        metadata: metadata
+      });
+      
+    } catch (error) {
+      clearTimeout(timeout);
+      reject(new Error(`EPUB processing failed: ${error.message}`));
+    }
+  });
+}
+
+// ===== ENHANCED JSON PROCESSING =====
+
+function processGenericJSON(jsonContent, title) {
+  const chunks = [];
+  let chunkIndex = 0;
+  
+  function processValue(value, path = '', depth = 0) {
+    if (depth > 10) return; // Prevent infinite recursion
+    
+    if (typeof value === 'string' && value.trim().length > 15) {
+      const cleanText = value.trim();
+      const structurePath = path ? `${title} > ${path}` : title;
+      
+      chunks.push({
+        content: cleanText,
+        structure_path: structurePath,
+        chunk_index: chunkIndex++,
+        page_title: title,
+        block_type: 'json_value',
+        json_path: path
+      });
+    } else if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        processValue(item, `${path}[${index}]`, depth + 1);
+      });
+    } else if (value && typeof value === 'object') {
+      Object.entries(value).forEach(([key, val]) => {
+        const newPath = path ? `${path}.${key}` : key;
+        processValue(val, newPath, depth + 1);
+      });
+    }
+  }
+  
+  try {
+    const data = JSON.parse(jsonContent);
+    processValue(data);
+    return chunks;
+  } catch (error) {
+    throw new Error('Invalid JSON format');
+  }
+}
+
+
 // ===== UPLOAD AND PROCESS SOURCE =====
 
 app.post('/upload-source', async (req, res) => {
   try {
-    const { title, author, content, source_type } = req.body;
+    const { title, author, content, source_type, file_buffer } = req.body;
     
-    // 1. Insert source into database
+    // 1. Process content based on source type
+    let processedContent;
+    let chunks;
+    
+    if (source_type === 'pdf') {
+      // Handle PDF files
+      if (!file_buffer) {
+        throw new Error('PDF file buffer is required');
+      }
+      const buffer = Buffer.from(file_buffer, 'base64');
+      const pdfData = await processPDF(buffer);
+      processedContent = pdfData.content;
+      
+      // Create chunks from PDF content
+      const textChunks = splitIntoChunks(processedContent, 500);
+      chunks = textChunks.map((chunk, index) => ({
+        content: chunk,
+        structure_path: `Page ${Math.floor(index / 3) + 1} > Chunk ${index + 1}`,
+        chunk_index: index,
+        page_title: title,
+        block_type: 'pdf_chunk'
+      }));
+      
+    } else if (source_type === 'epub') {
+      // Handle EPUB files
+      if (!file_buffer) {
+        throw new Error('EPUB file buffer is required');
+      }
+      
+      console.log(`Processing EPUB file: ${title} (${Math.round(file_buffer.length / 1024)} KB)`);
+      
+      const buffer = Buffer.from(file_buffer, 'base64');
+      const epubData = await processEPUB(buffer);
+      processedContent = epubData.content;
+      
+      console.log(`EPUB processing complete. Content length: ${processedContent.length} characters`);
+      
+      // Create chunks from EPUB content
+      const textChunks = splitIntoChunks(processedContent, 500);
+      chunks = textChunks.map((chunk, index) => ({
+        content: chunk,
+        structure_path: `Chapter ${Math.floor(index / 5) + 1} > Chunk ${index + 1}`,
+        chunk_index: index,
+        page_title: title,
+        block_type: 'epub_chunk'
+      }));
+      
+    } else if (source_type === 'json') {
+      // Handle generic JSON files
+      processedContent = content;
+      chunks = processGenericJSON(content, title);
+      
+    } else if (source_type === 'roam') {
+      // Handle Roam Research exports
+      processedContent = content;
+      chunks = parseRoamJSON(content);
+      
+    } else {
+      // Handle text files
+      processedContent = content;
+      const textChunks = splitIntoChunks(content, 500);
+      chunks = textChunks.map((chunk, index) => ({
+        content: chunk,
+        structure_path: `Chunk ${index + 1}`,
+        chunk_index: index,
+        page_title: title,
+        block_type: 'text_chunk'
+      }));
+    }
+    
+    // 2. Insert source into database
     const { data: source, error: sourceError } = await supabase
       .from('sources')
       .insert({
@@ -287,27 +530,10 @@ app.post('/upload-source', async (req, res) => {
       .single();
 
     if (sourceError) throw sourceError;
-
-    let chunks;
-    
-    // 2. Parse content based on source type
-    if (source_type === 'roam' || source_type === 'json') {
-      chunks = parseRoamJSON(content);
-    } else {
-      // Original text chunking for .txt files
-      const textChunks = splitIntoChunks(content, 500);
-      chunks = textChunks.map((chunk, index) => ({
-        content: chunk,
-        structure_path: `Chunk ${index + 1}`,
-        chunk_index: index,
-        page_title: title,
-        block_type: 'text_chunk'
-      }));
-    }
     
     let chunksCreated = 0;
     
-    // 3. Process each chunk
+    // 3. Process each chunk for embeddings
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       
@@ -336,7 +562,7 @@ app.post('/upload-source', async (req, res) => {
           .insert({
             source_id: source.id,
             content: content,
-            chunk_index: chunksCreated,
+            chunk_index: chunk.chunk_index,
             structure_path: structurePath
           })
           .select()
@@ -349,7 +575,7 @@ app.post('/upload-source', async (req, res) => {
           source_id: source.id,
           source_title: title,
           content: content,
-          chunk_index: chunksCreated,
+          chunk_index: chunk.chunk_index,
           structure_path: structurePath,
           page_title: chunk.page_title,
           block_type: chunk.block_type,
@@ -498,6 +724,50 @@ app.delete('/sources/:id', async (req, res) => {
     console.error('Delete error:', error);
     res.status(500).json({ 
       error: 'Failed to delete source',
+      details: error.message 
+    });
+  }
+});
+
+// Get all notes from a specific source
+app.get('/sources/:id/notes', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get all chunks for this source
+    const { data: chunks, error } = await supabase
+      .from('source_chunks')
+      .select('*')
+      .eq('source_id', id)
+      .order('chunk_index', { ascending: true });
+    
+    if (error) throw error;
+    
+    // Get source info
+    const { data: source, error: sourceError } = await supabase
+      .from('sources')
+      .select('id, title, author, source_type')
+      .eq('id', id)
+      .single();
+    
+    if (sourceError) throw sourceError;
+    
+    // Format results to match search endpoint format
+    const results = chunks.map(chunk => ({
+      content: chunk.content,
+      source_title: source.title,
+      chunk_index: chunk.chunk_index,
+      source_id: chunk.source_id,
+      structure_path: chunk.structure_path,
+      score: 1.0 // All notes from source get 100% match
+    }));
+    
+    res.json(results);
+    
+  } catch (error) {
+    console.error('Get source notes error:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve source notes',
       details: error.message 
     });
   }
