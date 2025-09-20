@@ -1,2799 +1,2027 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Research Assistant</title>
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-    <meta http-equiv="Pragma" content="no-cache">
-    <meta http-equiv="Expires" content="0">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: #f8fafc;
-            height: 100vh;
-            display: flex;
-        }
-        
-        .sidebar {
-            width: 80px;
-            background: white;
-            border-right: 1px solid #e2e8f0;
-            padding: 20px 10px;
-            transition: all 0.3s ease;
-            position: relative;
-        }
-        
-        .sidebar.collapsed {
-            width: 0;
-            padding: 0;
-            border-right: none;
-            overflow: hidden;
-        }
-        
-        .logo {
-            display: none;
-        }
-        
-        .nav-item {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 12px;
-            margin-bottom: 8px;
-            color: #64748b;
-            cursor: pointer;
-            border-radius: 8px;
-            transition: all 0.2s ease;
-        }
-        
-        .nav-item:hover {
-            background: #f1f5f9;
-            color: #3b82f6;
-        }
-        
-        .nav-item.active {
-            background: #f0f9ff;
-            color: #3b82f6;
-        }
-        
-        .panel-container {
-            width: 400px;
-            background: white;
-            border-right: 1px solid #e2e8f0;
-            transition: all 0.3s ease;
-            position: relative;
-        }
-        
-        .panel-container.collapsed {
-            width: 0;
-            border-right: none;
-            overflow: hidden;
-        }
-        
-        .panel {
-            display: none;
-            height: 100vh;
-            flex-direction: column;
-        }
-        
-        .panel.active {
-            display: flex;
-        }
-        
-        .panel-header {
-            padding: 20px;
-            border-bottom: 1px solid #f1f5f9;
-        }
-        
-        .panel-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1e293b;
-        }
-        
-        .panel-content {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-        }
-        
-        .writing-area {
-            flex: 1;
-            background: white;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .writing-header {
-            padding: 20px;
-            border-bottom: 1px solid #f1f5f9;
-            transition: padding-left 0.3s ease;
-        }
-        
-        .writing-header.sidebar-collapsed {
-            padding-left: 80px;
-        }
-        
-        .writing-title {
-            font-size: 24px;
-            font-weight: 600;
-            color: #1e293b;
-            border: none;
-            outline: none;
-            width: 100%;
-            margin-bottom: 8px;
-        }
-        
-        .writing-meta {
-            color: #64748b;
-            font-size: 14px;
-        }
-        
-        .writing-content {
-            flex: 1;
-            padding: 20px;
-        }
-        
-        .editor {
-            width: 100%;
-            height: 100%;
-            border: none;
-            outline: none;
-            font-size: 16px;
-            line-height: 1.6;
-            color: #334155;
-            resize: none;
-            font-family: Georgia, 'Times New Roman', serif;
-        }
-        
-        .search-input {
-            width: 100%;
-            padding: 12px 16px;
-            border: 1px solid #d1d5db;
-            border-radius: 8px;
-            font-size: 14px;
-            outline: none;
-            margin-bottom: 20px;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-        
-        .search-input.notes-search {
-            min-height: 90px;
-            resize: vertical;
-            line-height: 1.5;
-        }
-        
-        .search-input:focus {
-            border-color: #3b82f6;
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        }
-        
-        .btn {
-            background: #3b82f6;
-            color: white;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: background 0.2s ease;
-        }
-        
-        .btn:hover:not(:disabled) {
-            background: #2563eb;
-        }
-        
-        .btn:disabled {
-            background: #94a3b8;
-            cursor: not-allowed;
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 40px 20px;
-            color: #9ca3af;
-        }
-        
-        .empty-icon {
-            width: 32px;
-            height: 32px;
-            margin: 0 auto 12px;
-            opacity: 0.4;
-            color: #9ca3af;
-        }
-        
-        .empty-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #374151;
-            margin-bottom: 6px;
-        }
-        
-        .empty-description {
-            font-size: 14px;
-        }
-        
-        .file-drop-area {
-            border: 2px dashed #d1d5db;
-            border-radius: 8px;
-            padding: 40px 20px;
-            text-align: center;
-            background: white;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .file-drop-area:hover {
-            border-color: #3b82f6;
-            background: #f8fafc;
-        }
-        
-        .file-drop-area.dragover {
-            border-color: #3b82f6;
-            background: #f0f9ff;
-        }
+// Load environment variables
+require('dotenv').config({ path: '../.env' });
 
-        .source-card {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 12px;
-            transition: all 0.2s ease;
-        }
+const express = require('express');
+const cors = require('cors');
+const { createClient } = require('@supabase/supabase-js');
+const { QdrantClient } = require('@qdrant/js-client-rest');
+const OpenAI = require('openai');
+const pdfParse = require('pdf-parse');
+const AdmZip = require('adm-zip');
+const nltk = require('nltk');
 
-        .source-card:hover {
-            border-color: #3b82f6;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
+// ===== ENHANCED PDF PROCESSING FUNCTIONS =====
 
-        .source-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 8px;
-        }
-
-        .source-icon {
-            width: 32px;
-            height: 32px;
-            background: #f1f5f9;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-        }
-
-        .source-info {
-            flex: 1;
-        }
-
-        .source-title {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1e293b;
-            margin-bottom: 2px;
-        }
-
-        .source-author {
-            font-size: 12px;
-            color: #64748b;
-        }
-
-        .status-badge {
-            background: #10b981;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 600;
-        }
-
-        .status-badge.processing {
-            background: #fbbf24;
-        }
-
-        .status-badge.error {
-            background: #ef4444;
-        }
-
-        .source-actions {
-            display: flex;
-            gap: 8px;
-            margin-top: 8px;
-        }
-
-        .source-action-btn {
-            flex: 1;
-            background: none;
-            border: 1px solid #e2e8f0;
-            padding: 6px 12px;
-            border-radius: 4px;
-            font-size: 12px;
-            color: #64748b;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .source-action-btn:hover {
-            background: #f1f5f9;
-            border-color: #3b82f6;
-            color: #3b82f6;
-        }
-
-        .source-action-btn.delete {
-            color: #ef4444;
-            border-color: #fecaca;
-        }
-
-        .source-action-btn.delete:hover {
-            background: #fef2f2;
-            border-color: #ef4444;
-        }
-
-        /* Auto-search toggle styles */
-        .auto-search-toggle {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 16px;
-            padding: 8px 0;
-        }
-
-        .auto-search-toggle label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            color: #64748b;
-            cursor: pointer;
-        }
-
-        .auto-search-toggle input[type="checkbox"] {
-            margin: 0;
-        }
-
-        .auto-search-status {
-            font-size: 12px;
-            color: #10b981;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-
-        /* New styles for note cards and filters */
-        .notes-filters {
-            display: flex;
-            gap: 8px;
-            margin-bottom: 20px;
-        }
-
-        .filter-select {
-            flex: 1;
-            padding: 8px 12px;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            font-size: 14px;
-            background: white;
-            color: #374151;
-        }
-
-        .filter-select:focus {
-            border-color: #3b82f6;
-            outline: none;
-        }
-
-        .note-card {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 12px;
-            transition: all 0.2s ease;
-        }
-
-        .note-card:hover {
-            border-color: #3b82f6;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-
-        .note-header {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            margin-bottom: 12px;
-        }
-
-        .note-meta {
-            flex: 1;
-        }
-
-        .note-score {
-            font-size: 12px;
-            font-weight: 600;
-            color: #059669;
-            margin-bottom: 4px;
-        }
-
-        .note-source {
-            font-size: 12px;
-            color: #64748b;
-        }
-
-        .note-actions {
-            display: flex;
-            gap: 8px;
-        }
-
-        .note-action-btn {
-            width: 28px;
-            height: 28px;
-            border: none;
-            background: #f8fafc;
-            border-radius: 4px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #64748b;
-            transition: all 0.2s ease;
-        }
-
-        .note-action-btn:hover {
-            background: #e2e8f0;
-            color: #3b82f6;
-        }
-
-        .note-action-btn.saved {
-            background: #dcfce7;
-            color: #059669;
-        }
-
-        .note-content {
-            font-size: 14px;
-            line-height: 1.5;
-            color: #374151;
-        }
-
-        .icon {
-            width: 20px;
-            height: 20px;
-        }
-
-        /* Load more button styles */
-        .load-more-container {
-            text-align: center;
-            padding: 20px 0;
-            border-top: 1px solid #f1f5f9;
-            margin-top: 16px;
-        }
-
-        .load-more-btn {
-            background: #f8fafc;
-            color: #64748b;
-            border: 1px solid #e2e8f0;
-            padding: 10px 20px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .load-more-btn:hover {
-            background: #f1f5f9;
-            border-color: #3b82f6;
-            color: #3b82f6;
-        }
-
-        .load-more-btn:disabled {
-            background: #f8fafc;
-            color: #94a3b8;
-            cursor: not-allowed;
-            opacity: 0.6;
-        }
-        
-        /* Toggle button styles */
-        .toggle-btn {
-            position: absolute;
-            top: 20px;
-            right: -12px;
-            width: 24px;
-            height: 24px;
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 50%;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 10;
-            transition: all 0.2s ease;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-        }
-        
-        .toggle-btn:hover {
-            background: #f8fafc;
-            border-color: #3b82f6;
-        }
-        
-        .toggle-btn svg {
-            width: 12px;
-            height: 12px;
-            color: #64748b;
-        }
-        
-        .toggle-btn:hover svg {
-            color: #3b82f6;
-        }
-        
-        .sidebar .toggle-btn {
-            right: -12px;
-        }
-        
-        .panel-container .toggle-btn {
-            right: -12px;
-        }
-        
-        /* Hamburger menu for collapsed sidebar */
-        .hamburger-menu {
-            position: fixed;
-            top: 20px;
-            left: 20px;
-            width: 40px;
-            height: 40px;
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            cursor: pointer;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-            transition: all 0.2s ease;
-        }
-        
-        .hamburger-menu:hover {
-            background: #f8fafc;
-            border-color: #3b82f6;
-        }
-        
-        .hamburger-menu svg {
-            width: 20px;
-            height: 20px;
-            color: #64748b;
-        }
-        
-        .hamburger-menu:hover svg {
-            color: #3b82f6;
-        }
-        
-        .hamburger-menu.show {
-            display: flex;
-        }
-        
-        /* Source Viewer Styles */
-        .source-viewer {
-            width: 400px;
-            background: white;
-            border-right: 1px solid #e2e8f0;
-            display: none;
-            flex-direction: column;
-            position: relative;
-        }
-        
-        .source-viewer.active {
-            display: flex;
-        }
-        
-        .source-viewer-header {
-            padding: 20px;
-            border-bottom: 1px solid #f1f5f9;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .source-viewer-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #1e293b;
-        }
-        
-        .source-viewer-close {
-            width: 24px;
-            height: 24px;
-            border: none;
-            background: none;
-            cursor: pointer;
-            color: #64748b;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        
-        .source-viewer-close:hover {
-            background: #f1f5f9;
-            color: #374151;
-        }
-        
-        .source-viewer-content {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-        }
-        
-        .source-viewer-content h1,
-        .source-viewer-content h2,
-        .source-viewer-content h3 {
-            color: #1e293b;
-            margin-top: 24px;
-            margin-bottom: 12px;
-        }
-        
-        .source-viewer-content h1 {
-            font-size: 24px;
-            border-bottom: 2px solid #e2e8f0;
-            padding-bottom: 8px;
-        }
-        
-        .source-viewer-content h2 {
-            font-size: 20px;
-        }
-        
-        .source-viewer-content h3 {
-            font-size: 18px;
-        }
-        
-        .source-viewer-content p {
-            margin-bottom: 16px;
-        }
-        
-        .chunk-marker {
-            position: relative;
-        }
-        
-        .chunk-marker::before {
-            content: '';
-            position: absolute;
-            left: -20px;
-            top: 0;
-            width: 4px;
-            height: 100%;
-            background: #3b82f6;
-            opacity: 0;
-            transition: opacity 0.3s ease;
-        }
-        
-        .chunk-marker.highlighted::before {
-            opacity: 1;
-        }
-        
-        .chunk-marker.highlighted {
-            background: #f0f9ff;
-            padding: 8px;
-            border-radius: 4px;
-            margin: 4px 0;
-        }
-        
-        /* Project card styles */
-        .project-card {
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 12px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-        
-        .project-card:hover {
-            border-color: #3b82f6;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-        
-        .project-card.active {
-            background: #f0f9ff;
-            border-color: #3b82f6;
-        }
-    </style>
-</head>
-<body>
-    <div class="sidebar" id="sidebar">
-        
-        <div class="nav-item active" onclick="switchToPanel('projects', this)" title="Projects">
-            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-        </div>
-        <div class="nav-item" onclick="switchToPanel('library', this)" title="Library">
-            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-            </svg>
-        </div>
-        <div class="nav-item" onclick="switchToPanel('notes', this)" title="Notes">
-            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-        </div>
-    </div>
+async function processPDF(buffer) {
+  try {
+    const data = await pdfParse(buffer);
     
-    <div class="panel-container" id="panel-container">
-        <button class="toggle-btn" onclick="togglePanel()" title="Collapse panel">
-            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-            </svg>
-        </button>
-        
-        <!-- Projects Panel -->
-        <div class="panel active" id="projects-panel">
-            <div class="panel-header">
-                <div class="panel-title">Projects</div>
-            </div>
-            <div class="panel-content">
-                <input type="text" class="search-input" placeholder="Search projects..." id="project-search">
-                <button class="btn" onclick="showCreateProjectModal()">+ New Project</button>
-                
-                <div style="margin-top: 20px;" id="projects-container">
-                    <!-- Projects will be dynamically loaded here -->
-                </div>
-            </div>
-        </div>
-        
-        <!-- Library Panel -->
-        <div class="panel" id="library-panel">
-            <div class="panel-header">
-                <div class="panel-title">Library</div>
-            </div>
-            <div class="panel-content">
-                <input type="text" class="search-input" placeholder="Search sources..." id="library-search">
-                <button class="btn" onclick="showUploadInterface()">+ Upload Source</button>
-                
-                <!-- Upload Form -->
-                <div id="upload-form" style="display: none; margin-top: 20px; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc;">
-                    <h3 style="margin-bottom: 16px; font-size: 16px; font-weight: 600; color: #1e293b;">Upload New Source</h3>
-                    
-                    <div style="margin-bottom: 16px;">
-                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600; color: #374151;">Title</label>
-                        <input type="text" id="upload-title" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
-                    </div>
-                    
-                    <div style="margin-bottom: 16px;">
-                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600; color: #374151;">Author (optional)</label>
-                        <input type="text" id="upload-author" style="width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
-                    </div>
-                    
-                    <div style="margin-bottom: 16px;">
-                        <label style="display: block; margin-bottom: 4px; font-size: 12px; font-weight: 600; color: #374151;">Choose File</label>
-                        <div class="file-drop-area" onclick="document.getElementById('file-input').click()">
-                            <input type="file" id="file-input" accept=".txt,.json,.pdf,.epub" style="display: none;">
-                            <svg width="48" height="48" style="margin: 0 auto 12px; color: #9ca3af;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                            </svg>
-                            <div style="font-size: 14px; color: #374151; margin-bottom: 4px;">
-                                <strong>Click to upload</strong> or drag and drop
-                            </div>
-                            <div style="font-size: 12px; color: #6b7280;">
-                                Supports: .txt, .json, .pdf, .epub files
-                            </div>
-                        </div>
-                        <div id="selected-file" style="display: none; margin-top: 12px; padding: 8px; background: #f0f9ff; border-radius: 4px; font-size: 14px; color: #1e40af;"></div>
-                    </div>
-                    
-                    <div style="display: flex; gap: 8px;">
-                        <button class="btn" onclick="processUpload()" id="upload-btn" disabled>Upload & Process</button>
-                        <button onclick="hideUploadInterface()" style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer;">Cancel</button>
-                    </div>
-                    
-                    <div id="upload-status" style="margin-top: 12px; font-size: 14px;"></div>
-                </div>
-                
-                <div style="margin-top: 20px;" id="sources-list">
-                    <div class="empty-state">
-                        <div class="empty-icon">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                            </svg>
-                        </div>
-                        <div class="empty-title">No sources yet</div>
-                        <div class="empty-description">Upload your first source to get started</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Notes Panel -->
-        <div class="panel" id="notes-panel">
-            <div class="panel-header">
-                <div class="panel-title">Notes</div>
-            </div>
-            <div class="panel-content">
-                <textarea class="search-input notes-search" placeholder="Search your sources with a detailed query or question" id="notes-search" oninput="performSearch()" onkeydown="handleSearchKeydown(event)"></textarea>
-                
-                <!-- Auto-search Toggle -->
-                <div class="auto-search-toggle">
-                    <label>
-                        <input type="checkbox" id="auto-search-toggle" checked onchange="toggleAutoSearch()">
-                        <span>Auto-search</span>
-                    </label>
-                    <div id="auto-search-status" class="auto-search-status">
-                        ✓ Auto-searching...
-                    </div>
-                </div>
-                
-                <!-- Filter Options -->
-                <div class="notes-filters">
-                    <select class="filter-select" id="source-filter" onchange="applyFilters()">
-                        <option value="">All Sources</option>
-                    </select>
-                </div>
-                <div class="notes-filters" style="margin-top: 8px;">
-                    <select class="filter-select" id="project-filter" onchange="applyFilters()">
-                        <option value="">All Notes</option>
-                    </select>
-                </div>
-                
-                <div id="notes-results">
-                    <div class="empty-state">
-                        <div class="empty-icon">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                            </svg>
-                        </div>
-                        <div class="empty-title">No notes yet</div>
-                        <div class="empty-description">Search or start writing to see relevant notes</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    // Apply enhanced paragraph detection to the extracted text
+    const enhancedText = detectAndPreserveParagraphs(data.text);
     
-    <!-- Hamburger Menu (shown when sidebar is collapsed) -->
-    <div class="hamburger-menu" id="hamburger-menu" onclick="expandSidebar()" title="Open menu">
-        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
-    </div>
+    return {
+      content: enhancedText,
+      pages: data.numpages,
+      info: data.info
+    };
+  } catch (error) {
+    throw new Error(`PDF processing failed: ${error.message}`);
+  }
+}
+
+function detectAndPreserveParagraphs(rawText) {
+  if (!rawText) return rawText;
+  
+  // Step 1: Normalize line endings
+  let text = rawText.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  
+  // Step 2: Fix common PDF extraction issues
+  text = text
+    // Fix words that got split without proper spacing
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    // Fix number-word boundaries
+    .replace(/(\d)([A-Za-z])/g, '$1 $2')
+    .replace(/([A-Za-z])(\d)/g, '$1 $2')
+    // Clean up excessive spaces but preserve intentional breaks
+    .replace(/[ \t]+/g, ' ')
+    // Remove spaces at start/end of lines
+    .replace(/^ +/gm, '')
+    .replace(/ +$/gm, '');
+  
+  // Step 3: Split into lines for analysis
+  const lines = text.split('\n');
+  const paragraphs = [];
+  let currentParagraph = '';
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    const nextLine = i < lines.length - 1 ? lines[i + 1].trim() : '';
     
-    <!-- Source Notes Viewer -->
-    <div class="source-viewer" id="source-viewer">
-        <div class="source-viewer-header">
-            <div class="source-viewer-title" id="source-viewer-title">Source Notes</div>
-            <button class="source-viewer-close" onclick="closeSourceViewer()" title="Close notes viewer">
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
-        </div>
-        <div class="source-viewer-content" id="source-viewer-content">
-            <div class="empty-state">
-                <div class="empty-icon">
-                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                    </svg>
-                </div>
-                <div class="empty-title">No notes selected</div>
-                <div class="empty-description">Click "Notes" on a source or "View note in context" on a note</div>
-            </div>
-        </div>
-    </div>
+    // Skip completely empty lines
+    if (line === '') {
+      if (currentParagraph.trim() !== '') {
+        paragraphs.push(currentParagraph.trim());
+        currentParagraph = '';
+      }
+      continue;
+    }
     
-    <!-- Writing Area -->
-    <div class="writing-area">
-        <div class="writing-header">
-            <input type="text" class="writing-title" placeholder="Untitled Document" id="document-title">
-            <div class="writing-meta">Draft • Last modified: Today</div>
-        </div>
-        <div class="writing-content">
-            <textarea class="editor" placeholder="Start writing your research paper..." id="document-editor" oninput="handleEditorInput()"></textarea>
-        </div>
-    </div>
+    // Check if this line should start a new paragraph
+    if (shouldStartNewParagraph(line, currentParagraph, nextLine)) {
+      // Save current paragraph if it has content
+      if (currentParagraph.trim() !== '') {
+        paragraphs.push(currentParagraph.trim());
+      }
+      currentParagraph = line;
+    } else {
+      // Continue current paragraph
+      if (currentParagraph === '') {
+        currentParagraph = line;
+      } else {
+        // Determine if we need a space between lines
+        const needsSpace = needsSpaceBetweenLines(currentParagraph, line);
+        if (needsSpace) {
+          currentParagraph += ' ' + line;
+        } else {
+          currentParagraph += line; // For hyphenated words, etc.
+        }
+      }
+    }
+  }
+  
+  // Don't forget the last paragraph
+  if (currentParagraph.trim() !== '') {
+    paragraphs.push(currentParagraph.trim());
+  }
+  
+  // Join paragraphs with double newlines to preserve structure
+  return paragraphs.join('\n\n');
+}
 
-    <!-- Create Project Modal -->
-    <div id="create-project-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-        <div style="background: white; border-radius: 8px; padding: 24px; width: 400px; max-width: 90vw;">
-            <h3 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #1e293b;">Create New Project</h3>
-            <input type="text" id="new-project-title" placeholder="Project title..." style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; margin-bottom: 16px;">
-            <div style="display: flex; gap: 8px; justify-content: flex-end;">
-                <button onclick="hideCreateProjectModal()" style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer;">Cancel</button>
-                <button onclick="createNewProject()" class="btn">Create Project</button>
-            </div>
-        </div>
-    </div>
+function shouldStartNewParagraph(currentLine, existingParagraph, nextLine) {
+  if (!currentLine) return false;
+  if (!existingParagraph) return true; // First line always starts a paragraph
+  
+  // Get the last part of the existing paragraph
+  const lastSentence = existingParagraph.split('.').pop().trim();
+  
+  // Clear paragraph breaks: previous content ended with sentence punctuation
+  if (/[.!?]\s*$/.test(existingParagraph) && /^[A-Z]/.test(currentLine)) {
+    return true;
+  }
+  
+  // Indented lines (common in academic texts)
+  if (currentLine.match(/^\s{4,}/) || currentLine.startsWith('\t')) {
+    return true;
+  }
+  
+  // Lines that start with typical paragraph indicators
+  const paragraphStarters = [
+    /^\d+\.\s+/, // Numbered lists
+    /^[A-Z][a-z]+,/, // "However,", "Moreover,", etc.
+    /^(Chapter|Section|Part)\s+/i,
+    /^["""]/, // Quotes
+    /^(But|However|Moreover|Furthermore|Nevertheless|Therefore|Thus|Hence|Consequently)/,
+  ];
+  
+  for (const pattern of paragraphStarters) {
+    if (pattern.test(currentLine)) {
+      return true;
+    }
+  }
+  
+  // Academic/formal writing patterns - be more aggressive
+  if (currentLine.match(/^(The|This|These|Those|Such|One|Many|Most|All|Some|Few|After|As|When|If|While|Since|Because|Although|Though|Despite|In|On|At|For|With|By|From|To|Of|About|Under|Over|Through|During|Before|After)\s+/)) {
+    // Check if the previous paragraph seems complete
+    if (existingParagraph.length > 150 && /[.!?]\s*$/.test(existingParagraph)) {
+      return true;
+    }
+  }
+  
+  // More aggressive paragraph detection for academic texts
+  // If current line starts with a capital letter and previous paragraph ended with punctuation
+  if (/^[A-Z]/.test(currentLine) && /[.!?]\s*$/.test(existingParagraph)) {
+    // Additional check: if the previous paragraph is reasonably long, start new paragraph
+    if (existingParagraph.length > 100) {
+      return true;
+    }
+  }
+  
+  return false;
+}
 
-    <!-- Delete Confirmation Modal -->
-    <div id="delete-project-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center;">
-        <div style="background: white; border-radius: 8px; padding: 24px; width: 400px; max-width: 90vw;">
-            <h3 style="margin: 0 0 16px 0; font-size: 18px; font-weight: 600; color: #1e293b;">Delete Project</h3>
-            <p style="margin: 0 0 16px 0; color: #64748b;">Are you sure you want to delete "<span id="delete-project-name"></span>"? This action cannot be undone.</p>
-            <div style="display: flex; gap: 8px; justify-content: flex-end;">
-                <button onclick="hideDeleteProjectModal()" style="background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer;">Cancel</button>
-                <button onclick="confirmDeleteProject()" style="background: #ef4444; color: white; border: none; padding: 8px 16px; border-radius: 6px; font-size: 14px; cursor: pointer;">Delete</button>
-            </div>
-        </div>
-    </div>
+function needsSpaceBetweenLines(previousContent, currentLine) {
+  const lastChar = previousContent.slice(-1);
+  const firstChar = currentLine.charAt(0);
+  
+  // Handle hyphenated words split across lines
+  if (lastChar === '-') {
+    return false; // Concatenate directly
+  }
+  
+  // If previous line ended with punctuation and current starts with capital
+  if (/[.!?]$/.test(previousContent) && /^[A-Z]/.test(currentLine)) {
+    return true;
+  }
+  
+  // If previous line ended with lowercase and current starts with lowercase
+  if (/[a-z]$/.test(previousContent) && /^[a-z]/.test(currentLine)) {
+    return true;
+  }
+  
+  // Default to adding space
+  return true;
+}
 
-    <script>
-        const API_BASE = 'http://localhost:3001';
-        let selectedFile = null;
-        let allNotes = [];
-        let displayedNotes = [];
-        let projects = new Map(); // Map of projectId -> project data
-        let currentProjectId = null;
-        let savedNotes = new Map(); // Map of projectId -> Set of noteIds
-        let availableSources = new Set();
-        let availableProjects = new Set();
-        let autoSearchEnabled = true;
-        let autoSearchTimeout = null;
-        let currentSearchQuery = '';
-        let searchLimit = 10;
-        let searchOffset = 0;
-        let hasMoreResults = false;
-        let sidebarCollapsed = false;
-        let panelCollapsed = false;
+// Enhanced chunking specifically for PDFs that preserves paragraph structure
+function createPDFChunks(content, maxChunkSize = 1500) {
+  const paragraphs = content.split('\n\n').filter(p => p.trim().length > 0);
+  const chunks = [];
+  let currentChunk = '';
+  let chunkIndex = 0;
+  
+  for (const paragraph of paragraphs) {
+    const trimmedParagraph = paragraph.trim();
+    
+    // Skip very short paragraphs that are likely headers or page numbers
+    if (trimmedParagraph.length < 100) {
+      console.log(`DEBUG: Skipping short paragraph (${trimmedParagraph.length} chars):`, trimmedParagraph.substring(0, 50) + '...');
+      continue;
+    }
+    
+    console.log(`DEBUG: Processing paragraph (${trimmedParagraph.length} chars):`, trimmedParagraph.substring(0, 100) + '...');
+    
+    // If this paragraph alone is too big, split it carefully
+    if (trimmedParagraph.length > maxChunkSize) {
+      // Save current chunk if it has content
+      if (currentChunk.trim()) {
+        chunks.push({
+          content: currentChunk.trim(),
+          structure_path: `Section ${Math.floor(chunkIndex / 3) + 1} > Chunk ${chunkIndex + 1}`,
+          chunk_index: chunkIndex,
+          block_type: 'pdf_chunk'
+        });
+        chunkIndex++;
+        currentChunk = '';
+      }
+      
+      // Split large paragraph by sentences, keeping them together when possible
+      const sentences = trimmedParagraph.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+      let sentenceChunk = '';
+      
+      for (const sentence of sentences) {
+        const testChunk = sentenceChunk + (sentenceChunk ? ' ' : '') + sentence;
         
-        // Toggle functions
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            const toggleBtn = sidebar.querySelector('.toggle-btn');
-            const icon = toggleBtn.querySelector('svg path');
-            const hamburgerMenu = document.getElementById('hamburger-menu');
-            const writingHeader = document.querySelector('.writing-header');
-            
-            sidebarCollapsed = !sidebarCollapsed;
-            sidebar.classList.toggle('collapsed', sidebarCollapsed);
-            
-            // Show/hide hamburger menu and adjust writing header
-            if (sidebarCollapsed) {
-                hamburgerMenu.classList.add('show');
-                writingHeader.classList.add('sidebar-collapsed');
-                icon.setAttribute('d', 'M9 5l7 7-7 7');
-                toggleBtn.title = 'Expand sidebar';
-            } else {
-                hamburgerMenu.classList.remove('show');
-                writingHeader.classList.remove('sidebar-collapsed');
-                icon.setAttribute('d', 'M15 19l-7-7 7-7');
-                toggleBtn.title = 'Collapse sidebar';
-            }
+        if (testChunk.length > maxChunkSize && sentenceChunk.trim()) {
+          chunks.push({
+            content: sentenceChunk.trim(),
+            structure_path: `Section ${Math.floor(chunkIndex / 3) + 1} > Chunk ${chunkIndex + 1}`,
+            chunk_index: chunkIndex,
+            block_type: 'pdf_chunk'
+          });
+          chunkIndex++;
+          sentenceChunk = sentence;
+        } else {
+          sentenceChunk = testChunk;
         }
-        
-        function expandSidebar() {
-            if (sidebarCollapsed) {
-                toggleSidebar();
-            }
-        }
-        
-        // Source Viewer Functions
-        async function viewSource(sourceId, sourceTitle) {
-            try {
-                const response = await fetch(`${API_BASE}/sources/${sourceId}/full`);
-                if (!response.ok) {
-                    throw new Error(`Failed to load source: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                showSourceViewer(data, sourceTitle);
-                
-            } catch (error) {
-                console.error('Error loading source:', error);
-                alert('Failed to load source document');
-            }
-        }
-        
-        async function viewSourceWithChunk(sourceId, sourceTitle, chunkIndex) {
-            try {
-                const response = await fetch(`${API_BASE}/sources/${sourceId}/full?chunk=${chunkIndex}`);
-                if (!response.ok) {
-                    throw new Error(`Failed to load source: ${response.status}`);
-                }
-                
-                const data = await response.json();
-                showSourceViewer(data, sourceTitle, chunkIndex);
-                
-            } catch (error) {
-                console.error('Error loading source:', error);
-                alert('Failed to load source document');
-            }
-        }
-        
-        function showSourceViewer(data, sourceTitle, scrollToChunk = null) {
-            const sourceViewer = document.getElementById('source-viewer');
-            const titleElement = document.getElementById('source-viewer-title');
-            const contentElement = document.getElementById('source-viewer-content');
-            
-            // Update title
-            titleElement.textContent = sourceTitle;
-            
-            // Process content with chunk markers
-            let processedContent = data.content;
-            
-            // Replace chunk markers with HTML elements
-            processedContent = processedContent.replace(
-                /<!-- CHUNK_START:(\d+) -->([\s\S]*?)<!-- CHUNK_END:\1 -->/g,
-                '<div class="chunk-marker" data-chunk="$1">$2</div>'
-            );
-            
-            // Set content
-            contentElement.innerHTML = processedContent;
-            
-            // Show the source viewer
-            sourceViewer.classList.add('active');
-            
-            // Scroll to specific chunk if requested
-            if (scrollToChunk !== null) {
-                setTimeout(() => {
-                    const chunkElement = contentElement.querySelector(`[data-chunk="${scrollToChunk}"]`);
-                    if (chunkElement) {
-                        chunkElement.classList.add('highlighted');
-                        chunkElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                }, 100);
-            }
-        }
-        
-        function closeSourceViewer() {
-            const sourceViewer = document.getElementById('source-viewer');
-            sourceViewer.classList.remove('active');
-        }
-        
-        function togglePanel() {
-            const panelContainer = document.getElementById('panel-container');
-            const toggleBtn = panelContainer.querySelector('.toggle-btn');
-            const icon = toggleBtn.querySelector('svg path');
-            
-            panelCollapsed = !panelCollapsed;
-            panelContainer.classList.toggle('collapsed', panelCollapsed);
-            
-            // Update icon
-            if (panelCollapsed) {
-                icon.setAttribute('d', 'M9 5l7 7-7 7');
-                toggleBtn.title = 'Expand panel';
-            } else {
-                icon.setAttribute('d', 'M15 19l-7-7 7-7');
-                toggleBtn.title = 'Collapse panel';
-            }
-        }
-        
-        // Initialize projects
-        function initializeProjects() {
-            // Load from localStorage first
-            loadProjectsFromStorage();
-            
-            // If no projects exist, create a default one
-            if (projects.size === 0) {
-                const defaultProjectId = 'project-1';
-                projects.set(defaultProjectId, {
-                    id: defaultProjectId,
-                    title: 'Untitled Document',
-                    content: '',
-                    wordCount: 0,
-                    lastModified: new Date().toISOString(),
-                    createdAt: new Date().toISOString()
-                });
-                
-                savedNotes.set(defaultProjectId, new Set());
-                currentProjectId = defaultProjectId;
-                saveProjectsToStorage();
-            }
-            
-            // Load the current project content
-            if (currentProjectId) {
-                loadProject(currentProjectId);
-            } else {
-                // If no current project is set, use the first available project
-                const firstProjectId = Array.from(projects.keys())[0];
-                if (firstProjectId) {
-                    currentProjectId = firstProjectId;
-                    loadProject(currentProjectId);
-                }
-            }
-            
-            // Load all sources for the source filter
-            loadAllSources();
-            
-            updateProjectDisplay();
-        }
-        
-        function loadProjectsFromStorage() {
-            try {
-                const stored = localStorage.getItem('researchAssistantProjects');
-                if (stored) {
-                    const data = JSON.parse(stored);
-                    projects = new Map(data.projects);
-                    
-                    // Convert savedNotes arrays back to Sets
-                    savedNotes = new Map();
-                    if (data.savedNotes) {
-                        data.savedNotes.forEach(([projectId, noteArray]) => {
-                            savedNotes.set(projectId, new Set(noteArray));
-                        });
-                    }
-                    
-                    currentProjectId = data.currentProjectId || null;
-                }
-            } catch (error) {
-                console.error('Error loading projects from storage:', error);
-            }
-        }
-        
-        function saveProjectsToStorage() {
-            try {
-                const data = {
-                    projects: Array.from(projects.entries()),
-                    savedNotes: Array.from(savedNotes.entries()).map(([projectId, noteSet]) => [projectId, Array.from(noteSet)]),
-                    currentProjectId: currentProjectId
-                };
-                localStorage.setItem('researchAssistantProjects', JSON.stringify(data));
-            } catch (error) {
-                console.error('Error saving projects to storage:', error);
-            }
-        }
-        
-        function createProject(title) {
-            const projectId = 'project-' + Date.now();
-            const project = {
-                id: projectId,
-                title: title,
-                content: '',
-                wordCount: 0,
-                lastModified: new Date().toISOString(),
-                createdAt: new Date().toISOString()
-            };
-            
-            projects.set(projectId, project);
-            savedNotes.set(projectId, new Set());
-            saveProjectsToStorage();
-            updateProjectDisplay();
-            updateAvailableProjects();
-            
-            return projectId;
-        }
-        
-        let projectToDelete = null;
-        
-        function showCreateProjectModal() {
-            document.getElementById('create-project-modal').style.display = 'flex';
-            document.getElementById('new-project-title').value = '';
-            document.getElementById('new-project-title').focus();
-        }
-        
-        function hideCreateProjectModal() {
-            document.getElementById('create-project-modal').style.display = 'none';
-        }
-        
-        function createNewProject() {
-            const title = document.getElementById('new-project-title').value.trim();
-            if (!title) {
-                alert('Please enter a project title');
-                return;
-            }
-            
-            const projectId = createProject(title);
-            loadProject(projectId);
-            hideCreateProjectModal();
-        }
-        
-        function deleteProject(projectId) {
-            if (projects.size <= 1) {
-                alert('Cannot delete the last project. You must have at least one project.');
-                return;
-            }
-            
-            const project = projects.get(projectId);
-            if (!project) return;
-            
-            projectToDelete = projectId;
-            document.getElementById('delete-project-name').textContent = project.title;
-            document.getElementById('delete-project-modal').style.display = 'flex';
-        }
-        
-        function hideDeleteProjectModal() {
-            document.getElementById('delete-project-modal').style.display = 'none';
-            projectToDelete = null;
-        }
-        
-        function confirmDeleteProject() {
-            if (!projectToDelete) return;
-            
-            const projectId = projectToDelete;
-            projects.delete(projectId);
-            savedNotes.delete(projectId);
-            
-            // If we deleted the current project, switch to another one
-            if (currentProjectId === projectId) {
-                const remainingProjects = Array.from(projects.keys());
-                currentProjectId = remainingProjects[0];
-                loadProject(currentProjectId);
-            }
-            
-            saveProjectsToStorage();
-            updateProjectDisplay();
-            updateAvailableProjects();
-            hideDeleteProjectModal();
-        }
-        
-        function loadProject(projectId) {
-            const project = projects.get(projectId);
-            if (!project) return;
-            
-            currentProjectId = projectId;
-            
-            // Update the document title and content
-            document.getElementById('document-title').value = project.title;
-            document.getElementById('document-editor').value = project.content;
-            
-            // Update the writing meta
-            const wordCount = project.content.trim().split(/\s+/).filter(word => word.length > 0).length;
-            document.querySelector('.writing-meta').textContent = `${wordCount} words • Last modified: ${new Date(project.lastModified).toLocaleDateString()}`;
-            
-            // Update the project display to reflect the new selection
-            updateProjectDisplay();
-            saveProjectsToStorage();
-        }
-        
-        function updateProjectContent() {
-            if (!currentProjectId) return;
-            
-            const project = projects.get(currentProjectId);
-            if (!project) return;
-            
-            const title = document.getElementById('document-title').value;
-            const content = document.getElementById('document-editor').value;
-            const wordCount = content.trim().split(/\s+/).filter(word => word.length > 0).length;
-            
-            project.title = title;
-            project.content = content;
-            project.wordCount = wordCount;
-            project.lastModified = new Date().toISOString();
-            
-            projects.set(currentProjectId, project);
-            saveProjectsToStorage();
-            updateProjectDisplay();
-        }
-        
-        function updateProjectDisplay() {
-            const projectsContainer = document.getElementById('projects-container');
-            if (!projectsContainer) return;
-            
-            projectsContainer.innerHTML = '';
-            
-            projects.forEach(project => {
-                const savedCount = savedNotes.get(project.id)?.size || 0;
-                const isCurrent = project.id === currentProjectId;
-                
-                const projectCard = document.createElement('div');
-                projectCard.className = 'project-card';
-                if (isCurrent) {
-                    projectCard.classList.add('active');
-                }
-                
-                projectCard.innerHTML = `
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                        <div style="flex: 1;">
-                            <div style="font-size: 14px; font-weight: 600; color: #1e293b; margin-bottom: 4px;">${project.title}</div>
-                            <div style="font-size: 12px; color: #64748b;">${project.wordCount} words • ${savedCount} saved notes</div>
-                        </div>
-                        <button onclick="event.stopPropagation(); deleteProject('${project.id}')" 
-                                style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 4px; border-radius: 4px; transition: background 0.2s ease;"
-                                onmouseover="this.style.background='#fef2f2'" 
-                                onmouseout="this.style.background='none'"
-                                title="Delete project">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
-                        </button>
-                    </div>
-                `;
-                
-                projectCard.onclick = () => loadProject(project.id);
-                projectsContainer.appendChild(projectCard);
-            });
-        }
-        
-        // Panel switching function
-        function switchToPanel(panelName, element) {
-            console.log('Switching to panel:', panelName);
-            
-            // If the middle panel is collapsed, expand it first
-            if (panelCollapsed) {
-                togglePanel();
-            }
-            
-            // Update navigation active state
-            document.querySelectorAll('.nav-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            element.classList.add('active');
-            
-            // Update panel visibility
-            document.querySelectorAll('.panel').forEach(panel => {
-                panel.classList.remove('active');
-            });
-            
-            const targetPanel = document.getElementById(panelName + '-panel');
-            if (targetPanel) {
-                targetPanel.classList.add('active');
-                console.log('Successfully switched to:', panelName);
-            } else {
-                console.error('Panel not found:', panelName + '-panel');
-            }
-            
-            // Load sources when switching to library
-            if (panelName === 'library') {
-                console.log('Loading library sources...');
-                loadSourcesFromBackend();
-            }
-            
-            // Update projects when switching to notes
-            if (panelName === 'notes') {
-                console.log('Updating available projects...');
-                updateAvailableProjects();
-                loadAllSources();
-            }
-        }
-        
-        // Auto-search toggle functionality
-        function toggleAutoSearch() {
-            autoSearchEnabled = document.getElementById('auto-search-toggle').checked;
-            console.log('Auto-search', autoSearchEnabled ? 'enabled' : 'disabled');
-            
-            // Clear any pending auto-search
-            if (autoSearchTimeout) {
-                clearTimeout(autoSearchTimeout);
-                autoSearchTimeout = null;
-            }
-            
-            // Hide status indicator when disabled
-            const statusDiv = document.getElementById('auto-search-status');
-            if (!autoSearchEnabled) {
-                statusDiv.style.opacity = '0';
-            }
-        }
-        
-        function showAutoSearchStatus() {
-            if (!autoSearchEnabled) return;
-            
-            const statusDiv = document.getElementById('auto-search-status');
-            statusDiv.style.opacity = '1';
-            
-            // Hide after 2 seconds
-            setTimeout(() => {
-                statusDiv.style.opacity = '0';
-            }, 2000);
-        }
-        
-        function extractMeaningfulText() {
-            const editor = document.getElementById('document-editor');
-            const text = editor.value;
-            const cursorPosition = editor.selectionStart;
-            
-            console.log('ExtractMeaningfulText - Cursor position:', cursorPosition);
-            console.log('ExtractMeaningfulText - Text length:', text.length);
-            
-            if (!text || cursorPosition === undefined) {
-                console.log('ExtractMeaningfulText - No text or cursor position');
-                return '';
-            }
-            
-            // Extract a larger chunk of text around the cursor for better context
-            const chunkSize = 500; // Increased from 200 to 500 characters
-            const start = Math.max(0, cursorPosition - chunkSize);
-            const end = Math.min(text.length, cursorPosition + chunkSize);
-            
-            let textChunk = text.substring(start, end);
-            console.log('ExtractMeaningfulText - Text chunk:', textChunk);
-            
-            // Try to find paragraph boundaries first
-            const beforeCursor = text.substring(0, cursorPosition);
-            const afterCursor = text.substring(cursorPosition);
-            
-            // Look for paragraph breaks (double newlines) before and after cursor
-            const lastParagraphBreak = beforeCursor.lastIndexOf('\n\n');
-            const nextParagraphBreak = afterCursor.indexOf('\n\n');
-            
-            let paragraphStart = lastParagraphBreak > -1 ? lastParagraphBreak + 2 : Math.max(0, cursorPosition - 300);
-            let paragraphEnd = nextParagraphBreak > -1 ? cursorPosition + nextParagraphBreak : Math.min(text.length, cursorPosition + 300);
-            
-            // If we found a good paragraph, use it; otherwise use the chunk
-            if (paragraphEnd - paragraphStart > 100 && paragraphEnd - paragraphStart < 800) {
-                textChunk = text.substring(paragraphStart, paragraphEnd);
-                console.log('ExtractMeaningfulText - Using paragraph:', textChunk);
-            } else {
-                console.log('ExtractMeaningfulText - Using chunk around cursor');
-            }
-            
-            // Clean up the text chunk
-            textChunk = textChunk.trim();
-            
-            // If the chunk is too short, try to expand it
-            if (textChunk.length < 100) {
-                const expandedStart = Math.max(0, cursorPosition - 400);
-                const expandedEnd = Math.min(text.length, cursorPosition + 400);
-                textChunk = text.substring(expandedStart, expandedEnd).trim();
-                console.log('ExtractMeaningfulText - Expanded chunk:', textChunk);
-            }
-            
-            // Filter out very short chunks
-            if (textChunk.length < 50) {
-                console.log('ExtractMeaningfulText - Chunk too short');
-                return '';
-            }
-            
-            console.log('ExtractMeaningfulText - Returning:', textChunk);
-            return textChunk;
-        }
-        
-        function handleEditorInput() {
-            // Auto-save project content
-            updateProjectContent();
-            
-            console.log('HandleEditorInput - Auto-search enabled:', autoSearchEnabled);
-            
-            if (!autoSearchEnabled) return;
-            
-            // Clear any existing timeout
-            if (autoSearchTimeout) {
-                clearTimeout(autoSearchTimeout);
-            }
-            
-            // Set a new timeout
-            autoSearchTimeout = setTimeout(() => {
-                const editor = document.getElementById('document-editor');
-                const text = editor.value.trim();
-                
-                console.log('HandleEditorInput - Text length:', text.length);
-                
-                if (text.length < 100) {
-                    console.log('HandleEditorInput - Text too short, returning');
-                    return; // Need minimum content
-                }
-                
-                const searchQuery = extractMeaningfulText();
-                console.log('HandleEditorInput - Search query:', searchQuery);
-                
-                if (searchQuery && searchQuery.length > 50) {
-                    console.log('Auto-searching for:', searchQuery);
-                    
-                    // Show status indicator
-                    showAutoSearchStatus();
-                    
-                    // Perform the search
-                    performAutoSearch(searchQuery);
-                } else {
-                    console.log('HandleEditorInput - Search query too short or empty');
-                }
-            }, 2500); // Wait 2.5 seconds after user stops typing
-        }
-        
-        async function performAutoSearch(query) {
-            if (!autoSearchEnabled) return;
-            
-            // Reset for new auto-search
-            searchOffset = 0;
-            currentSearchQuery = query;
-            
-            // Update the search input to show what we're searching for
-            const searchInput = document.getElementById('notes-search');
-            searchInput.value = query.substring(0, 80) + (query.length > 80 ? '...' : '');
-            
-            try {
-                const response = await fetch(`${API_BASE}/search`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        query: query,
-                        limit: 24 // Request more results for better pagination (show 8, keep 16 cached)
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Search failed: ${response.status}`);
-                }
-                
-                const results = await response.json();
-                
-                // Store all results and show first 8
-                allNotes = results;
-                displayedNotes = results.slice(0, 8);
-                searchOffset = 8;
-                hasMoreResults = results.length > 8;
-                
-                updateAvailableSources(results);
-                applyFilters();
-                
-            } catch (error) {
-                console.error('Auto-search error:', error);
-            }
-        }
-        
-        // Handle keydown events in search input
-        function handleSearchKeydown(event) {
-            // If auto-search is disabled and user presses Enter, perform manual search
-            if (!autoSearchEnabled && event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault();
-                performManualSearch();
-            }
-        }
-        
-        // Manual search function (when auto-search is disabled)
-        async function performManualSearch() {
-            const searchInput = document.getElementById('notes-search');
-            let query = searchInput.value.trim();
-            
-            if (query.length < 3) {
-                displayEmptyState();
-                return;
-            }
-            
-            // Reset for new search
-            searchOffset = 0;
-            currentSearchQuery = query;
-            
-            try {
-                const response = await fetch(`${API_BASE}/search`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        query: query,
-                        limit: 10
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Search failed: ${response.status}`);
-                }
-                
-                const results = await response.json();
-                
-                if (results.length === 0) {
-                    displayEmptyState();
-                    return;
-                }
-                
-                allNotes = results;
-                displayedNotes = [...results];
-                updateAvailableSources(results);
-                applyFilters();
-                
-            } catch (error) {
-                console.error('Manual search error:', error);
-                displayErrorState();
-            }
-        }
-        
-        // Search functionality with debouncing for textarea
-        async function performSearch() {
-            // Check if auto-search is enabled
-            if (!autoSearchEnabled) {
-                return;
-            }
-            
-            // Clear existing timeout
-            if (performSearch.timeout) {
-                clearTimeout(performSearch.timeout);
-            }
-            
-            // Debounce the search for textarea input
-            performSearch.timeout = setTimeout(async () => {
-                const searchInput = document.getElementById('notes-search');
-                let query = searchInput.value.trim();
-                
-                if (query.length < 3) {
-                    displayEmptyState();
-                    return;
-                }
-                
-                // Reset for new search
-                searchOffset = 0;
-                currentSearchQuery = query;
-                
-                await executeSearch(query, searchLimit, searchOffset, true);
-            }, 500); // 500ms debounce for manual typing
-        }
-        
-        async function executeSearch(query, limit, offset = 0, isNewSearch = false) {
-            try {
-                const response = await fetch(`${API_BASE}/search`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        query: query,
-                        limit: limit + 1 // Get one extra to check if there are more results
-                    })
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Search failed: ${response.status}`);
-                }
-                
-                const results = await response.json();
-                
-                // Check if there are more results
-                hasMoreResults = results.length > limit;
-                
-                // Remove the extra result if present
-                if (hasMoreResults) {
-                    results.pop();
-                }
-                
-                if (isNewSearch) {
-                    allNotes = results;
-                    displayedNotes = [...results];
-                    updateAvailableSources(results);
-                } else {
-                    // This is a "load more" operation
-                    const newResults = results.slice(offset);
-                    allNotes = [...allNotes, ...newResults];
-                    displayedNotes = [...displayedNotes, ...newResults];
-                    updateAvailableSources(allNotes);
-                }
-                
-                applyFilters();
-                
-            } catch (error) {
-                console.error('Search error:', error);
-                displayErrorState();
-            }
-        }
-        
-        async function loadMoreResults() {
-            if (!hasMoreResults) return;
-            
-            const loadMoreBtn = document.getElementById('load-more-btn');
-            if (loadMoreBtn) {
-                loadMoreBtn.disabled = true;
-                loadMoreBtn.textContent = 'Loading...';
-            }
-            
-            searchOffset = displayedNotes.length;
-            
-            try {
-                // Check if this is a source-specific view (using dropdown filter)
-                const sourceFilter = document.getElementById('source-filter').value;
-                const searchInput = document.getElementById('notes-search').value.trim();
-                
-                if (sourceFilter && !searchInput) {
-                    // We're viewing a specific source without a search query
-                    // All notes are already loaded, just show more from the existing array
-                    const remainingNotes = allNotes.slice(searchOffset);
-                    const notesToAdd = remainingNotes.slice(0, searchLimit);
-                    
-                    displayedNotes = [...displayedNotes, ...notesToAdd];
-                    hasMoreResults = searchOffset + searchLimit < allNotes.length;
-                    
-                    applyFilters();
-                } else if (currentSearchQuery.startsWith('source:')) {
-                    // Legacy source-specific search (shouldn't happen with new implementation)
-                    const remainingNotes = allNotes.slice(searchOffset);
-                    const notesToAdd = remainingNotes.slice(0, searchLimit);
-                    
-                    displayedNotes = [...displayedNotes, ...notesToAdd];
-                    hasMoreResults = searchOffset + searchLimit < allNotes.length;
-                    
-                    applyFilters();
-                } else if (currentSearchQuery) {
-                    // Regular search - fetch more from backend
-                    const response = await fetch(`${API_BASE}/search`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            query: currentSearchQuery,
-                            limit: searchLimit + 1 // Get one extra to check if there are more results
-                        })
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error(`Load more failed: ${response.status}`);
-                    }
-                    
-                    const results = await response.json();
-                    const newResults = results.slice(searchOffset);
-                    
-                    // Check if there are more results after these
-                    hasMoreResults = results.length > searchOffset + searchLimit;
-                    
-                    // Take only the new results we need
-                    const resultsToAdd = newResults.slice(0, searchLimit);
-                    
-                    allNotes = [...allNotes, ...resultsToAdd];
-                    displayedNotes = [...displayedNotes, ...resultsToAdd];
-                    updateAvailableSources(allNotes);
-                    applyFilters();
-                }
-                
-            } catch (error) {
-                console.error('Load more error:', error);
-            } finally {
-                if (loadMoreBtn) {
-                    loadMoreBtn.disabled = false;
-                    loadMoreBtn.textContent = 'Load More';
-                }
-            }
-        }
-        
-        function updateAvailableSources(notes) {
-            const sourceFilter = document.getElementById('source-filter');
-            availableSources.clear();
-            
-            // Clear existing options except "All Sources"
-            while (sourceFilter.children.length > 1) {
-                sourceFilter.removeChild(sourceFilter.lastChild);
-            }
-            
-            // Add unique sources from the provided notes
-            notes.forEach(note => {
-                if (!availableSources.has(note.source_title)) {
-                    availableSources.add(note.source_title);
-                    const option = document.createElement('option');
-                    option.value = note.source_title;
-                    option.textContent = note.source_title;
-                    sourceFilter.appendChild(option);
-                }
-            });
-        }
-        
-        async function loadAllSources() {
-            try {
-                // Get all sources from the backend
-                const response = await fetch(`${API_BASE}/sources`);
-                if (response.ok) {
-                    const sources = await response.json();
-                    
-                    // Update source filter with all available sources
-                    const sourceFilter = document.getElementById('source-filter');
-                    availableSources.clear();
-                    
-                    // Clear existing options except "All Sources"
-                    while (sourceFilter.children.length > 1) {
-                        sourceFilter.removeChild(sourceFilter.lastChild);
-                    }
-                    
-                    // Add all sources
-                    sources.forEach(source => {
-                        if (!availableSources.has(source.title)) {
-                            availableSources.add(source.title);
-                            const option = document.createElement('option');
-                            option.value = source.title;
-                            option.textContent = source.title;
-                            sourceFilter.appendChild(option);
-                        }
-                    });
-                }
-            } catch (error) {
-                console.error('Error loading sources:', error);
-            }
-        }
-        
-        function updateAvailableProjects() {
-            const projectFilter = document.getElementById('project-filter');
-            availableProjects.clear();
-            
-            // Clear existing options except "All Notes"
-            while (projectFilter.children.length > 1) {
-                projectFilter.removeChild(projectFilter.lastChild);
-            }
-            
-            // Add all projects
-            projects.forEach(project => {
-                if (!availableProjects.has(project.title)) {
-                    availableProjects.add(project.title);
-                    const option = document.createElement('option');
-                    option.value = project.id;
-                    option.textContent = project.title;
-                    projectFilter.appendChild(option);
-                }
-            });
-        }
-        
-        function applyFilters() {
-            const sourceFilter = document.getElementById('source-filter').value;
-            const projectFilter = document.getElementById('project-filter').value;
-            
-            let filteredNotes = [...displayedNotes]; // Use displayedNotes instead of allNotes
-            
-            // Apply source filter
-            if (sourceFilter) {
-                filteredNotes = filteredNotes.filter(note => note.source_title === sourceFilter);
-            }
-            
-            // Apply project filter
-            if (projectFilter && projectFilter !== '') {
-                // Show only notes saved to the specific project
-                const projectNotes = savedNotes.get(projectFilter);
-                if (projectNotes) {
-                    filteredNotes = filteredNotes.filter(note => {
-                        const noteId = note.source_id + '-' + note.chunk_index;
-                        return projectNotes.has(noteId);
-                    });
-                } else {
-                    // If no saved notes for this project, show empty
-                    filteredNotes = [];
-                }
-            }
-            
-            displayNotes(filteredNotes);
-        }
-        
-        function displayNotes(notes) {
-            const resultsContainer = document.getElementById('notes-results');
-            
-            if (!notes || notes.length === 0) {
-                displayEmptyState();
-                return;
-            }
-            
-            resultsContainer.innerHTML = '';
-            
-            notes.forEach(note => {
-                const noteCard = createNoteCard(note);
-                resultsContainer.appendChild(noteCard);
-            });
-            
-            // Add load more button if there are more results available
-            if (hasMoreResults) {
-                const loadMoreContainer = document.createElement('div');
-                loadMoreContainer.className = 'load-more-container';
-                loadMoreContainer.innerHTML = `
-                    <button class="load-more-btn" id="load-more-btn" onclick="loadMoreResults()">
-                        Load More Results
-                    </button>
-                `;
-                resultsContainer.appendChild(loadMoreContainer);
-            }
-        }
-        
-        function createNoteCard(note) {
-            const card = document.createElement('div');
-            card.className = 'note-card';
-            
-            const noteId = note.source_id + '-' + note.chunk_index;
-            const projectNotes = savedNotes.get(currentProjectId);
-            const isSaved = projectNotes && projectNotes.has ? projectNotes.has(noteId) : false;
-            
-            // Calculate percentage score
-            const percentage = Math.round(note.score * 100);
-            
-            // Create author text if available
-            const authorText = note.author && note.author !== 'Unknown Author' ? ` by ${note.author}` : '';
-            
-            card.innerHTML = `
-                <div class="note-header">
-                    <div class="note-meta">
-                        <div class="note-score">${percentage}% match</div>
-                        <div class="note-source">${note.source_title}${authorText}</div>
-                    </div>
-                    <div class="note-actions">
-                        <button class="note-action-btn ${isSaved ? 'saved' : ''}" 
-                                onclick="toggleSaveNote('${noteId}')" 
-                                title="${isSaved ? 'Remove from project' : 'Save to project'}">
-                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                      d="${isSaved ? 'M5 13l4 4L19 7' : 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z'}" />
-                            </svg>
-                        </button>
-                        <button class="note-action-btn" 
-                                onclick="showNoteInContext('${note.source_id}', '${note.source_title}', ${note.chunk_index})" 
-                                title="View note in context">
-                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                            </svg>
-                        </button>
-                        <button class="note-action-btn" 
-                                onclick="copyNoteContent('${note.content.replace(/'/g, "\\'")}', '${note.source_title}')" 
-                                title="Copy note content">
-                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
-                                      d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                            </svg>
-                        </button>
-                    </div>
-                </div>
-                <div class="note-content">${note.content}</div>
-            `;
-            
-            return card;
-        }
-        
-        function toggleSaveNote(noteId) {
-            if (!currentProjectId) {
-                return;
-            }
-            
-            // Ensure the current project has a savedNotes entry
-            if (!savedNotes.has(currentProjectId)) {
-                savedNotes.set(currentProjectId, new Set());
-            }
-            
-            const projectNotes = savedNotes.get(currentProjectId);
-            
-            if (projectNotes.has(noteId)) {
-                projectNotes.delete(noteId);
-            } else {
-                projectNotes.add(noteId);
-            }
-            
-            // Update the button appearance
-            const button = event.target.closest('.note-action-btn');
-            const isSaved = projectNotes.has(noteId);
-            
-            button.classList.toggle('saved', isSaved);
-            button.title = isSaved ? 'Remove from project' : 'Save to project';
-            
-            // Update the icon
-            const svg = button.querySelector('svg path');
-            svg.setAttribute('d', isSaved ? 'M5 13l4 4L19 7' : 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z');
-            
-            // Update project display and save
-            updateProjectDisplay();
-            saveProjectsToStorage();
-            
-            const project = projects.get(currentProjectId);
-            console.log(`Note ${noteId} ${isSaved ? 'saved to' : 'removed from'} project: ${project?.title}`);
-        }
-        
-        function showSourceNotes(sourceTitle) {
-            // Set the source filter and apply filters
-            document.getElementById('source-filter').value = sourceTitle;
-            applyFilters();
-            console.log(`Showing all notes from: ${sourceTitle}`);
-        }
-        
-        async function copyNoteContent(content, sourceTitle) {
-            const button = event.target.closest('.note-action-btn');
-            const originalTitle = button.title;
-            
-            try {
-                // Check if clipboard API is available
-                if (navigator.clipboard && window.isSecureContext) {
-                    // Modern clipboard API
-                    await navigator.clipboard.writeText(content);
-                } else {
-                    // Fallback for older browsers or non-secure contexts
-                    const textArea = document.createElement('textarea');
-                    textArea.value = content;
-                    textArea.style.position = 'fixed';
-                    textArea.style.left = '-999999px';
-                    textArea.style.top = '-999999px';
-                    document.body.appendChild(textArea);
-                    textArea.focus();
-                    textArea.select();
-                    
-                    const successful = document.execCommand('copy');
-                    document.body.removeChild(textArea);
-                    
-                    if (!successful) {
-                        throw new Error('Copy command failed');
-                    }
-                }
-                
-                // Show success feedback
-                button.title = 'Copied!';
-                button.style.color = '#10b981';
-                
-                // Reset after 2 seconds
-                setTimeout(() => {
-                    button.title = originalTitle;
-                    button.style.color = '';
-                }, 2000);
-                
-                console.log(`Copied note from ${sourceTitle}`);
-                
-            } catch (error) {
-                console.error('Failed to copy note:', error);
-                
-                // Show a more user-friendly fallback
-                const copyText = `Note from ${sourceTitle}:\n\n${content}`;
-                
-                // Create a temporary modal for copying
-                const modal = document.createElement('div');
-                modal.style.cssText = `
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    width: 100%;
-                    height: 100%;
-                    background: rgba(0,0,0,0.5);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    z-index: 10000;
-                `;
-                
-                modal.innerHTML = `
-                    <div style="
-                        background: white;
-                        padding: 20px;
-                        border-radius: 8px;
-                        max-width: 500px;
-                        max-height: 400px;
-                        overflow-y: auto;
-                        box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-                    ">
-                        <h3 style="margin: 0 0 15px 0; color: #374151;">Copy Note Content</h3>
-                        <p style="margin: 0 0 10px 0; color: #6b7280; font-size: 14px;">Select and copy the text below:</p>
-                        <textarea readonly style="
-                            width: 100%;
-                            height: 200px;
-                            padding: 10px;
-                            border: 1px solid #d1d5db;
-                            border-radius: 4px;
-                            font-family: inherit;
-                            font-size: 14px;
-                            resize: vertical;
-                        ">${content}</textarea>
-                        <div style="margin-top: 15px; text-align: right;">
-                            <button onclick="this.closest('.modal').remove()" style="
-                                background: #3b82f6;
-                                color: white;
-                                border: none;
-                                padding: 8px 16px;
-                                border-radius: 4px;
-                                cursor: pointer;
-                            ">Close</button>
-                        </div>
-                    </div>
-                `;
-                
-                modal.className = 'modal';
-                document.body.appendChild(modal);
-                
-                // Auto-select the text
-                const textarea = modal.querySelector('textarea');
-                textarea.focus();
-                textarea.select();
-            }
-        }
-        
-        async function showNoteInContext(sourceId, sourceTitle, chunkIndex) {
-            console.log(`Loading notes in context for: ${sourceTitle}, chunk: ${chunkIndex}`);
-            
-            // Show the source viewer
-            const sourceViewer = document.getElementById('source-viewer');
-            const titleElement = document.getElementById('source-viewer-title');
-            const contentElement = document.getElementById('source-viewer-content');
-            
-            // Update title
-            titleElement.textContent = `Notes from ${sourceTitle}`;
-            
-            // Show loading state
-            contentElement.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-icon">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                    </div>
-                    <div class="empty-title">Loading notes...</div>
-                    <div class="empty-description">Fetching notes from ${sourceTitle}</div>
-                </div>
-            `;
-            
-            sourceViewer.classList.add('active');
-            
-            try {
-                // Get all notes from this specific source
-                const response = await fetch(`${API_BASE}/sources/${sourceId}/notes`);
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to get source notes: ${response.status}`);
-                }
-                
-                const sourceNotes = await response.json();
-                
-                if (sourceNotes.length === 0) {
-                    contentElement.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-icon">
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                </svg>
-                            </div>
-                            <div class="empty-title">No notes found</div>
-                            <div class="empty-description">No notes available for ${sourceTitle}</div>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                // Sort by chunk_index to show in order
-                sourceNotes.sort((a, b) => a.chunk_index - b.chunk_index);
-                
-                // Display notes with pagination
-                contentElement.innerHTML = '';
-                
-                // Show first 20 notes initially
-                const notesToShow = sourceNotes.slice(0, 20);
-                const hasMore = sourceNotes.length > 20;
-                
-                notesToShow.forEach(note => {
-                    const noteCard = createNoteCard(note);
-                    // Add highlighting for the specific note
-                    if (note.chunk_index === chunkIndex) {
-                        noteCard.classList.add('highlighted-note');
-                        noteCard.style.background = '#f0f9ff';
-                        noteCard.style.border = '2px solid #3b82f6';
-                    }
-                    contentElement.appendChild(noteCard);
-                });
-                
-                // Add "Load More" button if there are more notes
-                if (hasMore) {
-                    const loadMoreBtn = document.createElement('button');
-                    loadMoreBtn.id = 'source-load-more-btn';
-                    loadMoreBtn.className = 'load-more-btn';
-                    loadMoreBtn.textContent = `Load More Notes (${sourceNotes.length - 20} remaining)`;
-                    loadMoreBtn.onclick = () => loadMoreSourceNotes(sourceNotes, 20);
-                    contentElement.appendChild(loadMoreBtn);
-                }
-                
-                // Scroll to the specific note
-                setTimeout(() => {
-                    const targetNote = contentElement.querySelector('.highlighted-note');
-                    if (targetNote) {
-                        targetNote.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                }, 100);
-                
-            } catch (error) {
-                console.error('Error loading source notes:', error);
-                contentElement.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                            </svg>
-                        </div>
-                        <div class="empty-title">Error Loading Notes</div>
-                        <div class="empty-description">Could not load notes from ${sourceTitle}</div>
-                    </div>
-                `;
-            }
-        }
-        
-        function loadMoreSourceNotes(allNotes, currentCount) {
-            const contentElement = document.getElementById('source-viewer-content');
-            const loadMoreBtn = document.getElementById('source-load-more-btn');
-            
-            // Load next 20 notes
-            const nextBatch = allNotes.slice(currentCount, currentCount + 20);
-            const remaining = allNotes.length - (currentCount + 20);
-            
-            nextBatch.forEach(note => {
-                const noteCard = createNoteCard(note);
-                contentElement.insertBefore(noteCard, loadMoreBtn);
-            });
-            
-            // Update button or remove it
-            if (remaining > 0) {
-                loadMoreBtn.textContent = `Load More Notes (${remaining} remaining)`;
-                loadMoreBtn.onclick = () => loadMoreSourceNotes(allNotes, currentCount + 20);
-            } else {
-                loadMoreBtn.remove();
-            }
-        }
-        
-        async function showSourceNotesFromLibrary(sourceId, sourceTitle) {
-            console.log(`Loading notes for source: ${sourceTitle}`);
-            
-            // Show the source viewer
-            const sourceViewer = document.getElementById('source-viewer');
-            const titleElement = document.getElementById('source-viewer-title');
-            const contentElement = document.getElementById('source-viewer-content');
-            
-            // Update title
-            titleElement.textContent = `Notes from ${sourceTitle}`;
-            
-            // Show loading state
-            contentElement.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-icon">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                        </svg>
-                    </div>
-                    <div class="empty-title">Loading notes...</div>
-                    <div class="empty-description">Fetching notes from ${sourceTitle}</div>
-                </div>
-            `;
-            
-            sourceViewer.classList.add('active');
-            
-            try {
-                // Get all notes from this specific source
-                const response = await fetch(`${API_BASE}/sources/${sourceId}/notes`);
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to get source notes: ${response.status}`);
-                }
-                
-                const sourceNotes = await response.json();
-                
-                if (sourceNotes.length === 0) {
-                    contentElement.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-icon">
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                                </svg>
-                            </div>
-                            <div class="empty-title">No notes found</div>
-                            <div class="empty-description">No notes available for ${sourceTitle}</div>
-                        </div>
-                    `;
-                    return;
-                }
-                
-                // Sort by chunk_index to show in order
-                sourceNotes.sort((a, b) => a.chunk_index - b.chunk_index);
-                
-                // Display notes with pagination
-                contentElement.innerHTML = '';
-                
-                // Show first 20 notes initially
-                const notesToShow = sourceNotes.slice(0, 20);
-                const hasMore = sourceNotes.length > 20;
-                
-                notesToShow.forEach(note => {
-                    const noteCard = createNoteCard(note);
-                    contentElement.appendChild(noteCard);
-                });
-                
-                // Add "Load More" button if there are more notes
-                if (hasMore) {
-                    const loadMoreBtn = document.createElement('button');
-                    loadMoreBtn.id = 'source-load-more-btn';
-                    loadMoreBtn.className = 'load-more-btn';
-                    loadMoreBtn.textContent = `Load More Notes (${sourceNotes.length - 20} remaining)`;
-                    loadMoreBtn.onclick = () => loadMoreSourceNotes(sourceNotes, 20);
-                    contentElement.appendChild(loadMoreBtn);
-                }
-                
-                console.log(`Loaded ${sourceNotes.length} notes from ${sourceTitle}`);
-                
-            } catch (error) {
-                console.error('Error loading source notes:', error);
-                contentElement.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                            </svg>
-                        </div>
-                        <div class="empty-title">Error Loading Notes</div>
-                        <div class="empty-description">Could not load notes from ${sourceTitle}</div>
-                    </div>
-                `;
-            }
-        }
-        
-        function displayEmptyState() {
-            const resultsContainer = document.getElementById('notes-results');
-            resultsContainer.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-icon">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-                        </svg>
-                    </div>
-                    <div class="empty-title">No notes yet</div>
-                    <div class="empty-description">Search or start writing to see relevant notes</div>
-                </div>
-            `;
-        }
-        
-        function displayErrorState() {
-            const resultsContainer = document.getElementById('notes-results');
-            resultsContainer.innerHTML = `
-                <div class="empty-state">
-                    <div class="empty-icon">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                        </svg>
-                    </div>
-                    <div class="empty-title">Search Error</div>
-                    <div class="empty-description">Could not perform search. Please try again.</div>
-                </div>
-            `;
-        }
-        
-        function showUploadInterface() {
-            console.log('Showing upload interface');
-            document.getElementById('upload-form').style.display = 'block';
-        }
-        
-        function hideUploadInterface() {
-            document.getElementById('upload-form').style.display = 'none';
-            document.getElementById('upload-title').value = '';
-            document.getElementById('upload-author').value = '';
-            document.getElementById('upload-status').innerHTML = '';
-            document.getElementById('selected-file').style.display = 'none';
-            document.getElementById('upload-btn').disabled = true;
-            selectedFile = null;
-        }
-        
-        function handleFileSelection(file) {
-            if (!file) return;
-            
-            selectedFile = file;
-            
-            // Show selected file info
-            const fileInfo = document.getElementById('selected-file');
-            fileInfo.innerHTML = `
-                <strong>Selected:</strong> ${file.name} 
-                <span style="color: #6b7280;">(${(file.size / 1024).toFixed(1)} KB)</span>
-            `;
-            fileInfo.style.display = 'block';
-            
-            // Auto-fill title if empty
-            const titleInput = document.getElementById('upload-title');
-            if (!titleInput.value) {
-                const fileName = file.name.replace(/\.[^/.]+$/, ""); // Remove extension
-                titleInput.value = fileName;
-            }
-            
-            // Enable upload button
-            document.getElementById('upload-btn').disabled = false;
-        }
-        
-        async function processUpload() {
-            const title = document.getElementById('upload-title').value.trim();
-            const author = document.getElementById('upload-author').value.trim();
-            const statusDiv = document.getElementById('upload-status');
-            const uploadBtn = document.getElementById('upload-btn');
-            
-            if (!title) {
-                statusDiv.innerHTML = '<span style="color: #dc2626;">Please enter a title</span>';
-                return;
-            }
-            
-            if (!selectedFile) {
-                statusDiv.innerHTML = '<span style="color: #dc2626;">Please select a file</span>';
-                return;
-            }
-            
-            console.log('Selected file:', selectedFile);
-            console.log('File name:', selectedFile.name);
-            console.log('File size:', selectedFile.size);
-            console.log('File type:', selectedFile.type);
-            
-            const tempId = 'temp-' + Date.now();
-            
-            uploadBtn.disabled = true;
-            uploadBtn.textContent = 'Uploading...';
-            statusDiv.innerHTML = '<span style="color: #3b82f6;">Starting upload...</span>';
-            
-            // Show progress for large files
-            if (selectedFile.size > 100000) { // > 100KB
-                setTimeout(() => {
-                    if (uploadBtn.disabled) {
-                        statusDiv.innerHTML = '<span style="color: #3b82f6;">⏳ Processing large file... This may take several minutes</span>';
-                    }
-                }, 30000); // After 30 seconds
-            }
-            
-            // Set up timeout for large files (15 minutes)
-            const uploadTimeout = setTimeout(() => {
-                statusDiv.innerHTML = '<span style="color: #dc2626;">⚠ Upload timeout - file may be too large or complex</span>';
-                uploadBtn.disabled = false;
-                uploadBtn.textContent = 'Upload & Process';
-            }, 15 * 60 * 1000); // 15 minutes
-            
-            try {
-                const fileName = selectedFile.name.toLowerCase();
-                let sourceType = 'txt';
-                if (fileName.endsWith('.json')) {
-                    sourceType = 'json';
-                } else if (fileName.endsWith('.pdf')) {
-                    sourceType = 'pdf';
-                } else if (fileName.endsWith('.epub')) {
-                    sourceType = 'epub';
-                }
-                
-                const tempId = 'temp-' + Date.now();
-                
-                addSourceToUI({
-                    id: tempId,
-                    title: title,
-                    author: author || 'Unknown Author',
-                    source_type: sourceType,
-                    status: 'processing'
-                });
-                
-                // Don't hide the interface yet - we need to keep selectedFile
-                // hideUploadInterface();
-                
-                // Prepare upload data based on file type
-                let uploadData = {
-                    title: title,
-                    author: author || 'Unknown Author',
-                    source_type: sourceType
-                };
-                
-                if (sourceType === 'pdf' || sourceType === 'epub') {
-                    // For binary files, send as base64 buffer
-                    console.log('Processing binary file:', selectedFile.name, 'Size:', selectedFile.size);
-                    const arrayBuffer = await selectedFile.arrayBuffer();
-                    console.log('ArrayBuffer created, size:', arrayBuffer.byteLength);
-                    
-                    // Convert to base64 in chunks to avoid stack overflow
-                    const uint8Array = new Uint8Array(arrayBuffer);
-                    let binaryString = '';
-                    const chunkSize = 8192; // Process in 8KB chunks
-                    
-                    for (let i = 0; i < uint8Array.length; i += chunkSize) {
-                        const chunk = uint8Array.slice(i, i + chunkSize);
-                        binaryString += String.fromCharCode(...chunk);
-                    }
-                    
-                    const base64 = btoa(binaryString);
-                    console.log('Base64 conversion complete, length:', base64.length);
-                    uploadData.file_buffer = base64;
-                } else {
-                    // For text files, send as content
-                    const content = await readFileContent(selectedFile);
-                    uploadData.content = content;
-                }
-                
-                const response = await fetch(`${API_BASE}/upload-source`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(uploadData)
-                });
-                
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    throw new Error(`Upload failed: ${response.status} - ${errorText}`);
-                }
-                
-                const result = await response.json();
-                console.log('Upload successful:', result);
-                
-                updateSourceStatus(tempId, {
-                    id: result.source_id,
-                    chunks_created: result.chunks_created,
-                    status: 'completed'
-                });
-                
-                // Show success message
-                statusDiv.innerHTML = '<span style="color: #059669;">✓ Upload completed successfully</span>';
-                clearTimeout(uploadTimeout);
-                
-                // Hide upload interface after successful upload
-                hideUploadInterface();
-                
-            } catch (error) {
-                console.error('Upload error:', error);
-                clearTimeout(uploadTimeout);
-                
-                // Show detailed error message
-                let errorMessage = 'Upload failed';
-                if (error.message.includes('timeout')) {
-                    errorMessage = 'Upload timeout - file may be too large or complex';
-                } else if (error.message.includes('413')) {
-                    errorMessage = 'File too large - please try a smaller file';
-                } else if (error.message.includes('500')) {
-                    errorMessage = 'Server error - file may be corrupted or unsupported';
-                } else {
-                    errorMessage = `Upload failed: ${error.message}`;
-                }
-                
-                statusDiv.innerHTML = `<span style="color: #dc2626;">⚠ ${errorMessage}</span>`;
-                
-                // Only try to update source status if tempId exists
-                if (typeof tempId !== 'undefined') {
-                    updateSourceStatus(tempId, {
-                        status: 'error',
-                        error: error.message
-                    });
-                }
-            } finally {
-                uploadBtn.disabled = false;
-                uploadBtn.textContent = 'Upload & Process';
-            }
-        }
-        
-        async function deleteSource(sourceId, sourceTitle) {
-            if (!confirm(`Are you sure you want to delete "${sourceTitle}"?`)) {
-                return;
-            }
-            
-            const sourceCard = document.getElementById(`source-${sourceId}`);
-            if (sourceCard) {
-                sourceCard.style.opacity = '0.5';
-                sourceCard.style.pointerEvents = 'none';
-            }
-            
-            try {
-                const response = await fetch(`${API_BASE}/sources/${sourceId}`, {
-                    method: 'DELETE'
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Delete failed: ${response.status}`);
-                }
-                
-                if (sourceCard) {
-                    sourceCard.remove();
-                }
-                
-                const sourcesList = document.getElementById('sources-list');
-                if (sourcesList.children.length === 0) {
-                    sourcesList.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-icon">
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                </svg>
-                            </div>
-                            <div class="empty-title">No sources yet</div>
-                            <div class="empty-description">Upload your first source to get started</div>
-                        </div>
-                    `;
-                }
-                
-            } catch (error) {
-                console.error('Delete error:', error);
-                if (sourceCard) {
-                    sourceCard.style.opacity = '1';
-                    sourceCard.style.pointerEvents = 'auto';
-                }
-            }
-        }
-        
-        async function loadSourcesFromBackend() {
-            const sourcesList = document.getElementById('sources-list');
-            
-            try {
-                const response = await fetch(`${API_BASE}/sources`);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}`);
-                }
-                
-                const sources = await response.json();
-                sourcesList.innerHTML = '';
-                
-                if (sources.length === 0) {
-                    sourcesList.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-icon">
-                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                                </svg>
-                            </div>
-                            <div class="empty-title">No sources yet</div>
-                            <div class="empty-description">Upload your first source to get started</div>
-                        </div>
-                    `;
-                } else {
-                    sources.forEach(source => {
-                        addSourceToUI({
-                            id: source.id,
-                            title: source.title,
-                            author: source.author,
-                            source_type: source.source_type,
-                            status: 'completed',
-                            chunks_created: source.chunk_count
-                        });
-                    });
-                }
-                
-            } catch (error) {
-                console.error('Error loading sources:', error);
-                sourcesList.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">
-                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                            </svg>
-                        </div>
-                        <div class="empty-title">Connection Error</div>
-                        <div class="empty-description">Could not load sources. Is your backend running?</div>
-                    </div>
-                `;
-            }
-        }
-        
-        function addSourceToUI(source) {
-            const sourcesList = document.getElementById('sources-list');
-            
-            const emptyState = sourcesList.querySelector('.empty-state');
-            if (emptyState) {
-                emptyState.remove();
-            }
-            
-            const sourceCard = document.createElement('div');
-            sourceCard.className = 'source-card';
-            sourceCard.id = `source-${source.id}`;
-            
-            const statusBadge = getStatusBadge(source.status, source);
-            const icon = getSourceIcon(source.source_type);
-            
-            sourceCard.innerHTML = `
-                <div class="source-header">
-                    <div class="source-icon">${icon}</div>
-                    <div class="source-info">
-                        <div class="source-title">${source.title}</div>
-                        <div class="source-author">${source.author}</div>
-                    </div>
-                    ${statusBadge}
-                </div>
-                <div class="source-actions" style="display: ${source.status === 'processing' ? 'none' : 'flex'};">
-                    <button class="source-action-btn" onclick="showSourceNotesFromLibrary('${source.id}', '${source.title}')">Notes</button>
-                    <button class="source-action-btn" onclick="alert('Details for: ${source.title}')">Details</button>
-                    <button class="source-action-btn delete" onclick="deleteSource('${source.id}', '${source.title}')">Delete</button>
-                </div>
-            `;
+      }
+      
+      // Save remaining sentence chunk
+      if (sentenceChunk.trim()) {
+        chunks.push({
+          content: sentenceChunk.trim(),
+          structure_path: `Section ${Math.floor(chunkIndex / 3) + 1} > Chunk ${chunkIndex + 1}`,
+          chunk_index: chunkIndex,
+          block_type: 'pdf_chunk'
+        });
+        chunkIndex++;
+      }
+      
+    } else {
+      // Check if adding this paragraph would exceed chunk size
+      const testChunk = currentChunk + (currentChunk ? '\n\n' : '') + trimmedParagraph;
+      
+      if (testChunk.length > maxChunkSize && currentChunk.trim()) {
+        // Save current chunk and start new one
+        chunks.push({
+          content: currentChunk.trim(),
+          structure_path: `Section ${Math.floor(chunkIndex / 3) + 1} > Chunk ${chunkIndex + 1}`,
+          chunk_index: chunkIndex,
+          block_type: 'pdf_chunk'
+        });
+        chunkIndex++;
+        currentChunk = trimmedParagraph;
+      } else {
+        // Add paragraph to current chunk
+        currentChunk = testChunk;
+      }
+    }
+  }
+  
+  // Don't forget the last chunk
+  if (currentChunk.trim()) {
+    chunks.push({
+      content: currentChunk.trim(),
+      structure_path: `Section ${Math.floor(chunkIndex / 3) + 1} > Chunk ${chunkIndex + 1}`,
+      chunk_index: chunkIndex,
+      block_type: 'pdf_chunk'
+    });
+  }
+  
+  return chunks;
+}
 
-            sourcesList.insertBefore(sourceCard, sourcesList.firstChild);
+// Initialize OpenAI client
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Initialize Qdrant client
+const qdrant = new QdrantClient({
+  url: process.env.QDRANT_URL,
+  apiKey: process.env.QDRANT_API_KEY,
+  timeout: 60000, // 60 second timeout
+});
+
+// Initialize Express app
+const app = express();
+const PORT = process.env.PORT || 3001;
+
+// Middleware
+app.use(cors());
+app.use(express.json({ limit: '500mb' })); // Increased for large Roam graphs
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
+
+// Increase timeout for large file processing
+app.use((req, res, next) => {
+  req.setTimeout(30 * 60 * 1000); // 30 minutes for large files
+  res.setTimeout(30 * 60 * 1000); // 30 minutes for large files
+  next();
+});
+
+// Initialize Supabase client
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
+
+// Test route
+app.get('/', (req, res) => {
+  res.json({ message: 'Research Assistant Backend is running!' });
+});
+
+// Test Supabase connection
+app.get('/test-db', async (req, res) => {
+  try {
+    const { data, error } = await supabase.from('users').select('count');
+    if (error) {
+      res.json({ message: 'Supabase connected! (Tables not created yet)', error: error.message });
+    } else {
+      res.json({ message: 'Supabase connected and working!', data });
+    }
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Test Qdrant connection
+app.get('/test-qdrant', async (req, res) => {
+  try {
+    const collections = await qdrant.getCollections();
+    res.json({ 
+      message: 'Qdrant connected successfully!', 
+      collections: collections.collections 
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Qdrant connection failed', 
+      error: error.message 
+    });
+  }
+});
+
+// Test OpenAI embeddings
+app.get('/test-embeddings', async (req, res) => {
+  try {
+    const response = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: "This is a test sentence for embedding.",
+    });
+    
+    res.json({ 
+      message: 'OpenAI embeddings working!', 
+      embedding_length: response.data[0].embedding.length,
+      tokens_used: response.usage.total_tokens
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'OpenAI connection failed', 
+      error: error.message 
+    });
+  }
+});
+
+// Test database tables
+app.get('/test-tables', async (req, res) => {
+  try {
+    // Test inserting a sample source
+    const { data: source, error: sourceError } = await supabase
+      .from('sources')
+      .insert({
+        title: 'Test Book',
+        author: 'Test Author',
+        source_type: 'pdf',
+        user_id: null // no user for testing
+      })
+      .select()
+      .single();
+
+    if (sourceError) throw sourceError;
+
+    // Test inserting a sample chunk
+    const { data: chunk, error: chunkError } = await supabase
+      .from('source_chunks')
+      .insert({
+        source_id: source.id,
+        content: 'This is a test chunk of text from the book.',
+        chunk_index: 1,
+        structure_path: 'Chapter 1'
+      })
+      .select()
+      .single();
+
+    if (chunkError) throw chunkError;
+
+    // Clean up test data
+    await supabase.from('source_chunks').delete().eq('id', chunk.id);
+    await supabase.from('sources').delete().eq('id', source.id);
+
+    res.json({ 
+      message: 'Database tables working correctly!',
+      test_source_id: source.id,
+      test_chunk_id: chunk.id
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Database tables test failed', 
+      error: error.message 
+    });
+  }
+});
+
+// ===== KNOWLEDGE CLASSIFICATION FUNCTIONS =====
+
+// Knowledge Elements Framework categories
+const KNOWLEDGE_CATEGORIES = [
+  'Semantic',    // Meaning - Language
+  'Logical',     // Truth - Reason  
+  'Personal',    // Self - Introspection
+  'Narrative',   // Time - History
+  'Practical',   // Goodness - Experience
+  'Symbolic',    // Beauty - Imagination
+  'Reference'    // Authority - Testimony
+];
+
+// Classify a text chunk using OpenAI
+async function classifyTextChunk(text) {
+  try {
+    const prompt = `Analyze the following text chunk and classify it according to the Knowledge Elements Framework. 
+
+The seven categories are:
+1. Semantic (Meaning) - Concepts, definitions, categories, topics, abstract principles
+2. Logical (Truth) - Arguments, evidence, claims, reasoning, analytical structures  
+3. Personal (Self) - First-person reflections, emotions, beliefs, individual experiences, subjective insights
+4. Narrative (Time) - Historical events, people, places, chronological accounts, stories
+5. Practical (Goodness) - Strategies, solutions, methods, actionable advice, procedures
+6. Symbolic (Beauty) - Metaphors, themes, symbols, figurative meaning, artistic interpretation, poetic language
+7. Reference (Authority) - Citations, sources, scholarly apparatus, external validation
+
+Text to classify:
+"${text}"
+
+Respond with a JSON object in this exact format:
+{
+  "primary_category": "CategoryName",
+  "primary_confidence": 0.85,
+  "secondary_category": "CategoryName", 
+  "secondary_confidence": 0.65
+}
+
+Classification Guidelines:
+- PERSONAL: Only choose when the text expresses genuine personal experience, emotion, belief, or subjective insight. Mere use of "I" or "my" in analytical or descriptive contexts does NOT qualify as Personal.
+- SYMBOLIC: Look for metaphors, similes, figurative language, poetic expressions, symbolic references, and artistic interpretation. Be generous with this category - even subtle metaphors should be recognized.
+- Choose the most dominant knowledge type as primary_category
+- Only include secondary_category if there's a meaningful secondary presence (confidence > 0.3)
+- Use exact category names: Semantic, Logical, Personal, Narrative, Practical, Symbolic, Reference
+- Confidence scores should be between 0.0 and 1.0
+- If no clear secondary category exists, set secondary_category to null and secondary_confidence to null`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini", // Using mini for cost efficiency
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert text classifier specializing in the Knowledge Elements Framework. Always respond with valid JSON in the exact format requested."
+        },
+        {
+          role: "user", 
+          content: prompt
+        }
+      ],
+      temperature: 0.1, // Low temperature for consistent classification
+      max_tokens: 200
+    });
+
+    const result = JSON.parse(response.choices[0].message.content);
+    
+    // Validate the response
+    if (!KNOWLEDGE_CATEGORIES.includes(result.primary_category)) {
+      throw new Error(`Invalid primary category: ${result.primary_category}`);
+    }
+    
+    if (result.secondary_category && !KNOWLEDGE_CATEGORIES.includes(result.secondary_category)) {
+      throw new Error(`Invalid secondary category: ${result.secondary_category}`);
+    }
+    
+    // Ensure confidence scores are valid
+    if (result.primary_confidence < 0 || result.primary_confidence > 1) {
+      result.primary_confidence = 0.5; // Default fallback
+    }
+    
+    if (result.secondary_confidence !== null && (result.secondary_confidence < 0 || result.secondary_confidence > 1)) {
+      result.secondary_confidence = null;
+    }
+    
+    // If secondary confidence is too low, remove secondary category
+    if (result.secondary_confidence !== null && result.secondary_confidence < 0.3) {
+      result.secondary_category = null;
+      result.secondary_confidence = null;
+    }
+    
+    return result;
+    
+  } catch (error) {
+    console.error('Classification error:', error);
+    
+    // Fallback classification - try to determine category from text patterns
+    return fallbackClassification(text);
+  }
+}
+
+// Fallback classification using pattern matching
+function fallbackClassification(text) {
+  const lowerText = text.toLowerCase();
+  
+  // Simple pattern matching for fallback
+  let primaryCategory = 'Semantic'; // Default
+  let primaryConfidence = 0.5;
+  let secondaryCategory = null;
+  let secondaryConfidence = null;
+  
+  // Check for Symbolic indicators (more generous)
+  const symbolicPatterns = [
+    /\b(fresh|breeze|wind|light|dark|shadow|dawn|twilight|storm|calm)\b/i,
+    /\b(like|as|metaphor|symbol|represents|signifies|embodies)\b/i,
+    /\b(beauty|beautiful|poetic|artistic|imagery|vision)\b/i,
+    /\b(centuries|eternal|timeless|ancient|modern)\b/i
+  ];
+  
+  if (symbolicPatterns.some(pattern => pattern.test(text))) {
+    primaryCategory = 'Symbolic';
+    primaryConfidence = 0.7;
+  }
+  // Check for Personal indicators (more restrictive)
+  else if ((lowerText.includes(' i feel ') || lowerText.includes(' i believe ') || 
+           lowerText.includes(' i experienced ') || lowerText.includes(' i remember ') ||
+           lowerText.includes(' my experience ') || lowerText.includes(' personally ')) &&
+           !lowerText.includes(' i think ') && !lowerText.includes(' i would ')) {
+    primaryCategory = 'Personal';
+    primaryConfidence = 0.7;
+  }
+  // Check for Narrative indicators  
+  else if (/\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4}|january|february|march|april|may|june|july|august|september|october|november|december/i.test(text)) {
+    primaryCategory = 'Narrative';
+    primaryConfidence = 0.6;
+  }
+  // Check for Practical indicators
+  else if (lowerText.includes(' how to ') || lowerText.includes(' step ') || lowerText.includes(' method ') ||
+           lowerText.includes(' process ') || lowerText.includes(' procedure ')) {
+    primaryCategory = 'Practical';
+    primaryConfidence = 0.6;
+  }
+  // Check for Logical indicators
+  else if (lowerText.includes(' therefore ') || lowerText.includes(' because ') || lowerText.includes(' however ') ||
+           lowerText.includes(' evidence ') || lowerText.includes(' argument ')) {
+    primaryCategory = 'Logical';
+    primaryConfidence = 0.6;
+  }
+  // Check for Reference indicators
+  else if (lowerText.includes(' according to ') || lowerText.includes(' cited ') || lowerText.includes(' reference ') ||
+           lowerText.includes(' source ') || lowerText.includes(' bibliography ')) {
+    primaryCategory = 'Reference';
+    primaryConfidence = 0.6;
+  }
+  
+  return {
+    primary_category: primaryCategory,
+    primary_confidence: primaryConfidence,
+    secondary_category: secondaryCategory,
+    secondary_confidence: secondaryConfidence
+  };
+}
+
+// ===== ROAM PARSING FUNCTIONS =====
+
+function parseRoamJSON(jsonContent) {
+  const chunks = [];
+  let data;
+  
+  try {
+    data = JSON.parse(jsonContent);
+  } catch (error) {
+    throw new Error('Invalid JSON format');
+  }
+  
+  // Roam exports are arrays of pages
+  if (!Array.isArray(data)) {
+    throw new Error('Expected Roam export to be an array of pages');
+  }
+  
+  // Create a map of block UIDs to their content for resolving block references
+  const blockMap = new Map();
+  
+  // First pass: build the block map
+  data.forEach(page => {
+    if (page.children && Array.isArray(page.children)) {
+      buildBlockMap(page.children, blockMap);
+    }
+  });
+  
+  let chunkIndex = 0;
+  
+  // Process each page
+  data.forEach(page => {
+    const pageTitle = page.title || 'Untitled Page';
+    
+    // Add page title as a chunk if it exists and has meaningful content
+    if (pageTitle && pageTitle !== 'Untitled Page') {
+      chunks.push({
+        content: `Page: ${pageTitle}`,
+        structure_path: `Page: ${pageTitle}`,
+        chunk_index: chunkIndex++,
+        page_title: pageTitle,
+        block_type: 'page_title'
+      });
+    }
+    
+    // Process all blocks in the page
+    if (page.children && Array.isArray(page.children)) {
+      chunkIndex = processBlocks(page.children, chunks, pageTitle, '', chunkIndex, blockMap);
+    }
+  });
+  
+  return chunks;
+}
+
+// Build a map of block UIDs to their content for resolving block references
+function buildBlockMap(blocks, blockMap) {
+  blocks.forEach(block => {
+    if (block.uid && block.string) {
+      blockMap.set(block.uid, block.string);
+    }
+    
+    // Recursively process nested blocks
+    if (block.children && Array.isArray(block.children)) {
+      buildBlockMap(block.children, blockMap);
+    }
+  });
+}
+
+// Enhanced Roam text cleaning function
+function cleanRoamText(text, blockMap = new Map()) {
+  if (!text) return text;
+  
+  let cleanedText = text;
+  
+  // 1. Handle block references: ((-AbmaTFUf)) -> replace with actual content
+  cleanedText = cleanedText.replace(/\(\(([^)]+)\)\)/g, (match, uid) => {
+    const blockContent = blockMap.get(uid);
+    if (blockContent) {
+      // Clean the referenced block content and return it
+      return cleanRoamText(blockContent, blockMap);
+    }
+    return match; // Keep original if not found
+  });
+  
+  // 2. Handle internal links: [[Internal Link]] -> Internal Link
+  cleanedText = cleanedText.replace(/\[\[([^\]]+)\]\]/g, '$1');
+  
+  // 3. Handle external links: [External Link](url) -> External Link
+  cleanedText = cleanedText.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  
+  // 4. Handle markdown formatting: **^^Revelation^^** -> Revelation
+  cleanedText = cleanedText.replace(/\*\*([^*]+)\*\*/g, '$1'); // Remove bold
+  cleanedText = cleanedText.replace(/\^\^([^^]+)\^\^/g, '$1'); // Remove highlight
+  cleanedText = cleanedText.replace(/__([^_]+)__/g, '$1'); // Remove underline
+  cleanedText = cleanedText.replace(/\*([^*]+)\*/g, '$1'); // Remove italic
+  cleanedText = cleanedText.replace(/_([^_]+)_/g, '$1'); // Remove italic
+  
+  // 5. Handle tags: #[[tag]] -> #tag
+  cleanedText = cleanedText.replace(/#\[\[([^\]]+)\]\]/g, '#$1');
+  
+  // 6. Remove TODO/DONE markers
+  cleanedText = cleanedText.replace(/\{\{(?:TODO|DONE)\}\}/g, '');
+  
+  // 7. Clean up extra whitespace
+  cleanedText = cleanedText
+    .replace(/\s+/g, ' ') // Multiple spaces to single space
+    .replace(/\n\s*\n/g, '\n\n') // Multiple newlines to double newlines
+    .trim();
+  
+  return cleanedText;
+}
+
+function processBlocks(blocks, chunks, pageTitle, parentPath = '', startIndex = 0, blockMap = new Map()) {
+  let chunkIndex = startIndex;
+  
+  blocks.forEach((block, index) => {
+    // Extract the text content from the block
+    let blockText = '';
+    
+    if (block.string) {
+      blockText = block.string;
+    } else if (typeof block === 'string') {
+      blockText = block;
+    }
+    
+    // Clean up Roam syntax with improved formatting
+    if (blockText) {
+      blockText = cleanRoamText(blockText, blockMap);
+    }
+      
+      // Skip blocks that are 30 characters or less (increased from 15)
+      if (blockText.length > 30 && isCompleteSentence(blockText)) {
+        const structurePath = parentPath 
+          ? `${pageTitle} > ${parentPath} > Block ${index + 1}`
+          : `${pageTitle} > Block ${index + 1}`;
+        
+        chunks.push({
+          content: blockText,
+          structure_path: structurePath,
+          chunk_index: chunkIndex++,
+          page_title: pageTitle,
+          block_type: 'block',
+          block_uid: block.uid || null
+        });
+      }
+    
+    // Recursively process nested blocks
+    if (block.children && Array.isArray(block.children)) {
+      const newParentPath = parentPath 
+        ? `${parentPath} > Block ${index + 1}`
+        : `Block ${index + 1}`;
+      chunkIndex = processBlocks(block.children, chunks, pageTitle, newParentPath, chunkIndex, blockMap);
+    }
+  });
+  
+  return chunkIndex;
+}
+
+// Rough token estimation (1 token ≈ 4 characters for English text)
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4);
+}
+
+// Check if text is a complete sentence (not a title, fragment, or heading)
+function isCompleteSentence(text) {
+  const trimmed = text.trim();
+  
+  // Must be at least 30 characters
+  if (trimmed.length < 30) return false;
+  
+  // Skip if it's all caps (likely a title or heading)
+  if (trimmed === trimmed.toUpperCase() && trimmed.length < 200) return false;
+  
+  // Skip if it starts with common non-sentence patterns
+  const nonSentencePatterns = [
+    /^#+\s/,           // Markdown headers
+    /^Chapter\s+\d+/i, // Chapter headers
+    /^Section\s+\d+/i, // Section headers
+    /^Page\s+\d+/i,    // Page numbers
+    /^\d+\.\s*$/,      // Just numbers
+    /^[A-Z][a-z]*\s*:$/, // Labels like "Author:", "Title:"
+    /^[A-Z\s]+$/,      // All caps short phrases
+  ];
+  
+  for (const pattern of nonSentencePatterns) {
+    if (pattern.test(trimmed)) return false;
+  }
+  
+  // Must contain at least one complete sentence ending
+  const sentenceEndings = /[.!?]\s*$/;
+  if (!sentenceEndings.test(trimmed)) {
+    // Allow if it's a long paragraph that might be cut off
+    return trimmed.length > 200;
+  }
+  
+  // Must have some lowercase letters (not all caps)
+  if (!/[a-z]/.test(trimmed)) return false;
+  
+  return true;
+}
+
+function splitLongContent(content, maxTokens = 8000) {
+  const estimatedTokens = estimateTokens(content);
+  
+  if (estimatedTokens <= maxTokens) {
+    return [content];
+  }
+  
+  // Use paragraph-based chunking with character-based limits
+  // Convert token limit to character estimate (roughly 4 chars per token)
+  const maxChars = Math.floor(maxTokens * 4);
+  return splitIntoParagraphChunks(content, maxChars);
+}
+
+// ===== PDF PROCESSING FUNCTIONS =====
+
+async function processPDF(buffer) {
+  try {
+    const data = await pdfParse(buffer);
+    return {
+      content: data.text,
+      pages: data.numpages,
+      info: data.info
+    };
+  } catch (error) {
+    throw new Error(`PDF processing failed: ${error.message}`);
+  }
+}
+
+// ===== EPUB PROCESSING FUNCTIONS =====
+
+async function processEPUB(buffer) {
+  return new Promise((resolve, reject) => {
+    // Set a timeout for large files (5 minutes)
+    const timeout = setTimeout(() => {
+      reject(new Error('EPUB processing timeout - file too large or complex'));
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    try {
+      // For now, let's treat ePub as a ZIP file and extract text manually
+      // This is more reliable than the epub library
+      const AdmZip = require('adm-zip');
+      const zip = new AdmZip(buffer);
+      
+      let fullText = '';
+      let chapters = [];
+      let metadata = {
+        title: 'Untitled',
+        creator: 'Unknown Author',
+        language: 'en'
+      };
+      
+      // Extract all files from the ePub
+      const zipEntries = zip.getEntries();
+      
+      for (let i = 0; i < zipEntries.length; i++) {
+        const entry = zipEntries[i];
+        
+        // Look for HTML/XHTML files (main content)
+        if (entry.entryName.match(/\.(x?html?|xml)$/i) && !entry.entryName.includes('META-INF')) {
+          try {
+            const content = entry.getData().toString('utf8');
+            
+            // Extract text from HTML with better formatting
+            let cleanText = content
+              // Preserve paragraph breaks
+              .replace(/<\/p>/gi, '\n\n')
+              .replace(/<br\s*\/?>/gi, '\n')
+              .replace(/<\/div>/gi, '\n')
+              .replace(/<\/h[1-6]>/gi, '\n\n')
+              .replace(/<h[1-6][^>]*>/gi, '\n\n# ')
+              .replace(/<p[^>]*>/gi, '')
+              .replace(/<div[^>]*>/gi, '')
+              // Remove other HTML tags
+              .replace(/<[^>]*>/g, '')
+              // Clean up whitespace
+              .replace(/\n\s*\n\s*\n/g, '\n\n') // Multiple newlines to double newlines
+              .replace(/[ \t]+/g, ' ') // Multiple spaces to single space
+              .replace(/\n /g, '\n') // Remove leading spaces on new lines
+              .replace(/ \n/g, '\n') // Remove trailing spaces before newlines
+              .trim();
+            
+            if (cleanText.length > 100) { // Only include substantial content
+              const chapterTitle = entry.entryName.split('/').pop().replace(/\.(x?html?|xml)$/i, '');
+              chapters.push({
+                title: chapterTitle,
+                content: cleanText,
+                chapter_index: chapters.length
+              });
+              fullText += `\n\n# ${chapterTitle}\n\n${cleanText}`;
+            }
+          } catch (error) {
+            console.log(`Skipping file ${entry.entryName}: ${error.message}`);
+          }
         }
         
-        function updateSourceStatus(tempId, updateData) {
-            const sourceCard = document.getElementById(`source-${tempId}`);
-            if (!sourceCard) return;
+        // Look for metadata files
+        if (entry.entryName.includes('metadata') || entry.entryName.includes('package.opf')) {
+          try {
+            const content = entry.getData().toString('utf8');
+            // Simple metadata extraction
+            const titleMatch = content.match(/<dc:title[^>]*>([^<]+)<\/dc:title>/i);
+            const creatorMatch = content.match(/<dc:creator[^>]*>([^<]+)<\/dc:creator>/i);
             
-            if (updateData.id && updateData.id !== tempId) {
-                sourceCard.id = `source-${updateData.id}`;
-            }
-            
-            if (updateData.status) {
-                const statusBadge = getStatusBadge(updateData.status, updateData);
-                const existingBadge = sourceCard.querySelector('.status-badge');
-                if (existingBadge) {
-                    existingBadge.outerHTML = statusBadge;
-                }
-            }
-            
-            const actionsDiv = sourceCard.querySelector('.source-actions');
-            if (actionsDiv && updateData.status) {
-                actionsDiv.style.display = updateData.status === 'completed' ? 'flex' : 'none';
-            }
+            if (titleMatch) metadata.title = titleMatch[1];
+            if (creatorMatch) metadata.creator = creatorMatch[1];
+          } catch (error) {
+            // Ignore metadata parsing errors
+          }
         }
+      }
+      
+      // Limit total content size
+      if (fullText.length > 2000000) { // 2MB max
+        fullText = fullText.substring(0, 2000000) + '\n\n[Content truncated due to size]';
+      }
+      
+      if (fullText.length === 0) {
+        throw new Error('No readable content found in EPUB');
+      }
+      
+      clearTimeout(timeout);
+      resolve({
+        content: fullText.trim(),
+        chapters: chapters,
+        metadata: metadata
+      });
+      
+    } catch (error) {
+      clearTimeout(timeout);
+      reject(new Error(`EPUB processing failed: ${error.message}`));
+    }
+  });
+}
+
+// ===== ENHANCED JSON PROCESSING =====
+
+function processGenericJSON(jsonContent, title) {
+  const chunks = [];
+  let chunkIndex = 0;
+  
+  function processValue(value, path = '', depth = 0) {
+    if (depth > 10) return; // Prevent infinite recursion
+    
+    if (typeof value === 'string' && value.trim().length > 30 && isCompleteSentence(value.trim())) {
+      const cleanText = value.trim();
+      const structurePath = path ? `${title} > ${path}` : title;
+      
+      chunks.push({
+        content: cleanText,
+        structure_path: structurePath,
+        chunk_index: chunkIndex++,
+        page_title: title,
+        block_type: 'json_value',
+        json_path: path
+      });
+    } else if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        processValue(item, `${path}[${index}]`, depth + 1);
+      });
+    } else if (value && typeof value === 'object') {
+      Object.entries(value).forEach(([key, val]) => {
+        const newPath = path ? `${path}.${key}` : key;
+        processValue(val, newPath, depth + 1);
+      });
+    }
+  }
+  
+  try {
+    const data = JSON.parse(jsonContent);
+    processValue(data);
+    return chunks;
+  } catch (error) {
+    throw new Error('Invalid JSON format');
+  }
+}
+
+
+// ===== UPLOAD AND PROCESS SOURCE =====
+
+app.post('/upload-source', async (req, res) => {
+  try {
+    const { title, author, content, source_type, file_buffer } = req.body;
+    
+    // 1. Process content based on source type
+    let processedContent;
+    let chunks;
+    
+    if (source_type === 'pdf') {
+      // Handle PDF files with enhanced paragraph detection
+      if (!file_buffer) {
+        throw new Error('PDF file buffer is required');
+      }
+      const buffer = Buffer.from(file_buffer, 'base64');
+      const pdfData = await processPDF(buffer); // This now uses enhanced paragraph detection
+      processedContent = pdfData.content;
+      
+      console.log(`PDF processed: ${pdfData.pages} pages, ${processedContent.length} characters`);
+      console.log(`First 200 chars: ${processedContent.substring(0, 200)}...`);
+      
+      // Debug: Show paragraph structure
+      const paragraphs = processedContent.split('\n\n').filter(p => p.trim().length > 0);
+      console.log(`DEBUG: Found ${paragraphs.length} paragraphs after enhanced processing`);
+      console.log(`DEBUG: First 3 paragraphs:`, paragraphs.slice(0, 3).map(p => p.substring(0, 100) + '...'));
+      
+      // Create chunks from PDF content using enhanced PDF-specific chunking
+      chunks = createPDFChunks(processedContent, 2500);
+      
+      console.log(`PDF chunking: Created ${chunks.length} chunks from ${processedContent.split('\n\n').length} paragraphs`);
+      console.log(`DEBUG: First chunk:`, chunks[0]?.content?.substring(0, 200) + '...');
+      
+    } else if (source_type === 'epub') {
+      // Handle EPUB files
+      if (!file_buffer) {
+        throw new Error('EPUB file buffer is required');
+      }
+      
+    console.log(`Processing EPUB file: ${title} (${Math.round(file_buffer.length / 1024)} KB)`);
+    
+    const buffer = Buffer.from(file_buffer, 'base64');
+    console.log(`EPUB: Starting content extraction...`);
+    const epubData = await processEPUB(buffer);
+    processedContent = epubData.content;
+    
+    console.log(`EPUB processing complete. Content length: ${processedContent.length} characters`);
+      
+      // Create chunks from EPUB content using paragraph-based chunking
+      console.log(`EPUB: Creating text chunks...`);
+      const textChunks = splitIntoParagraphChunks(processedContent, 2000);
+      console.log(`EPUB: Created ${textChunks.length} raw chunks`);
+      
+      chunks = textChunks
+        .filter(chunk => chunk.length > 30 && isCompleteSentence(chunk))
+        .map((chunk, index) => ({
+          content: chunk,
+          structure_path: `Chapter ${Math.floor(index / 5) + 1} > Chunk ${index + 1}`,
+          chunk_index: index,
+          page_title: title,
+          block_type: 'epub_chunk'
+        }));
+      
+      console.log(`EPUB: Filtered to ${chunks.length} valid chunks (${Math.round((chunks.length / textChunks.length) * 100)}% kept)`);
+      
+    } else if (source_type === 'json') {
+      // Handle generic JSON files
+      processedContent = content;
+      chunks = processGenericJSON(content, title);
+      
+    } else if (source_type === 'roam') {
+      // Handle Roam Research exports
+      processedContent = content;
+      chunks = parseRoamJSON(content);
+      
+    } else {
+      // Handle text files with paragraph-based chunking
+      processedContent = content;
+      const textChunks = splitIntoParagraphChunks(content, 2000);
+      chunks = textChunks
+        .filter(chunk => chunk.length > 30 && isCompleteSentence(chunk))
+        .map((chunk, index) => ({
+          content: chunk,
+          structure_path: `Chunk ${index + 1}`,
+          chunk_index: index,
+          page_title: title,
+          block_type: 'text_chunk'
+        }));
+    }
+    
+    // 2. Insert source into database
+    console.log(`Database: Inserting source "${title}" into database...`);
+    const { data: source, error: sourceError } = await supabase
+      .from('sources')
+      .insert({
+        title,
+        author,
+        source_type,
+        user_id: null // for testing
+      })
+      .select()
+      .single();
+
+    if (sourceError) throw sourceError;
+    console.log(`Database: Source created with ID ${source.id}`);
+    
+    let chunksCreated = 0;
+    console.log(`Processing: Starting to process ${chunks.length} chunks for embeddings...`);
+    
+    // 3. Process each chunk for embeddings
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      
+      // Split content if it's too long for OpenAI
+      const contentPieces = splitLongContent(chunk.content);
+      
+      for (let pieceIndex = 0; pieceIndex < contentPieces.length; pieceIndex++) {
+        const content = contentPieces[pieceIndex];
         
-        function getStatusBadge(status, data = {}) {
-            let badgeClass = 'status-badge';
-            let badgeText = '';
-            
-            switch (status) {
-                case 'processing':
-                    badgeClass += ' processing';
-                    badgeText = 'Processing...';
-                    break;
-                case 'completed':
-                    badgeText = `${data.chunks_created || 0} notes`;
-                    break;
-                case 'error':
-                    badgeClass += ' error';
-                    badgeText = 'Error';
-                    break;
-                default:
-                    return '';
-            }
-            
-            return `<div class="${badgeClass}">${badgeText}</div>`;
-        }
-        
-        function getSourceIcon(sourceType) {
-            switch (sourceType) {
-                case 'txt': 
-                    return '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>';
-                case 'json': 
-                    return '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>';
-                case 'pdf': 
-                    return '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>';
-                case 'epub':
-                    return '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.746 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>';
-                case 'docx':
-                case 'doc':
-                    return '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>';
-                case 'md':
-                case 'markdown':
-                    return '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" /></svg>';
-                default: 
-                    return '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>';
-            }
-        }
-        
-        function readFileContent(file) {
-            return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onload = (e) => resolve(e.target.result);
-                reader.onerror = (e) => reject(new Error('Failed to read file'));
-                reader.readAsText(file);
-            });
-        }
-        
-        // File input handling
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize projects
-            initializeProjects();
-            
-            // Add auto-save for title
-            const titleInput = document.getElementById('document-title');
-            if (titleInput) {
-                titleInput.addEventListener('input', updateProjectContent);
-            }
-            
-            const fileInput = document.getElementById('file-input');
-            const dropArea = document.querySelector('.file-drop-area');
-            
-            if (fileInput && dropArea) {
-                fileInput.addEventListener('change', function(e) {
-                    handleFileSelection(e.target.files[0]);
-                });
-                
-                dropArea.addEventListener('dragover', function(e) {
-                    e.preventDefault();
-                    dropArea.classList.add('dragover');
-                });
-                
-                dropArea.addEventListener('dragleave', function(e) {
-                    e.preventDefault();
-                    dropArea.classList.remove('dragover');
-                });
-                
-                dropArea.addEventListener('drop', function(e) {
-                    e.preventDefault();
-                    dropArea.classList.remove('dragover');
-                    handleFileSelection(e.dataTransfer.files[0]);
-                });
-            }
-            
-            console.log('Research Assistant loaded successfully');
+        // Generate embedding for chunk
+        const embeddingResponse = await openai.embeddings.create({
+          model: "text-embedding-3-small",
+          input: content,
         });
         
-        // Make functions globally accessible
-        window.switchToPanel = switchToPanel;
-        window.showUploadInterface = showUploadInterface;
-        window.hideUploadInterface = hideUploadInterface;
-        window.processUpload = processUpload;
-        window.deleteSource = deleteSource;
-        window.performSearch = performSearch;
-        window.performAutoSearch = performAutoSearch;
-        window.loadMoreResults = loadMoreResults;
-        window.applyFilters = applyFilters;
-        window.toggleSaveNote = toggleSaveNote;
-        window.showSourceNotes = showSourceNotes;
-        window.showSourceNotesFromLibrary = showSourceNotesFromLibrary;
-        window.handleEditorInput = handleEditorInput;
-        window.toggleAutoSearch = toggleAutoSearch;
-        window.showCreateProjectModal = showCreateProjectModal;
-        window.hideCreateProjectModal = hideCreateProjectModal;
-        window.createNewProject = createNewProject;
-        window.deleteProject = deleteProject;
-        window.hideDeleteProjectModal = hideDeleteProjectModal;
-        window.confirmDeleteProject = confirmDeleteProject;
-        window.loadProject = loadProject;
-        window.toggleSidebar = toggleSidebar;
-        window.togglePanel = togglePanel;
-        window.expandSidebar = expandSidebar;
-        window.showNoteInContext = showNoteInContext;
-        window.copyNoteContent = copyNoteContent;
-        window.loadMoreSourceNotes = loadMoreSourceNotes;
-        window.handleSearchKeydown = handleSearchKeydown;
-        window.performManualSearch = performManualSearch;
-        window.closeSourceViewer = closeSourceViewer;
-    </script>
-</body>
-</html>
+        const embedding = embeddingResponse.data[0].embedding;
+        
+        // Create unique structure path for split content
+        const structurePath = contentPieces.length > 1 
+          ? `${chunk.structure_path} (Part ${pieceIndex + 1})`
+          : chunk.structure_path;
+        
+        // Classify the chunk using AI
+        console.log(`Classification: Analyzing chunk ${chunksCreated + 1}/${chunks.length}...`);
+        const classification = await classifyTextChunk(content);
+        console.log(`Classification: ${classification.primary_category} (${classification.primary_confidence})${classification.secondary_category ? ` + ${classification.secondary_category} (${classification.secondary_confidence})` : ''}`);
+
+        // Store chunk in database with classification
+        const { data: chunkData, error: chunkError } = await supabase
+          .from('source_chunks')
+          .insert({
+            source_id: source.id,
+            content: content,
+            chunk_index: chunk.chunk_index,
+            structure_path: structurePath,
+            primary_category: classification.primary_category,
+            secondary_category: classification.secondary_category,
+            primary_confidence: classification.primary_confidence,
+            secondary_confidence: classification.secondary_confidence
+          })
+          .select()
+          .single();
+
+        if (chunkError) throw chunkError;
+        
+        // Store embedding in Qdrant with retry logic
+        await uploadToQdrantWithRetry(chunkData, embedding, {
+          source_id: source.id,
+          source_title: title,
+          content: content,
+          chunk_index: chunk.chunk_index,
+          structure_path: structurePath,
+          page_title: chunk.page_title,
+          block_type: chunk.block_type,
+          block_uid: chunk.block_uid || null,
+          primary_category: classification.primary_category,
+          secondary_category: classification.secondary_category,
+          primary_confidence: classification.primary_confidence,
+          secondary_confidence: classification.secondary_confidence
+        });
+        
+        chunksCreated++;
+        
+        // Log progress for large uploads
+        if (chunksCreated % 50 === 0 || chunksCreated === chunks.length) {
+          const progress = Math.round((chunksCreated / chunks.length) * 100);
+          console.log(`Processing: ${chunksCreated}/${chunks.length} chunks processed (${progress}%)`);
+        }
+      }
+    }
+
+    console.log(`Upload: Successfully processed ${chunksCreated} chunks for "${title}"`);
+    
+    res.json({
+      message: 'Source uploaded and processed successfully',
+      source_id: source.id,
+      chunks_created: chunksCreated,
+      source_type: source_type
+    });
+
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ 
+      error: 'Failed to upload source',
+      details: error.message 
+    });
+  }
+});
+
+// Get all sources
+app.get('/sources', async (req, res) => {
+  try {
+    const { data: sources, error } = await supabase
+      .from('sources')
+      .select(`
+        *,
+        source_chunks (count)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Add chunk count to each source
+    const sourcesWithCounts = sources.map(source => ({
+      ...source,
+      chunk_count: source.source_chunks?.[0]?.count || 0
+    }));
+
+    res.json(sourcesWithCounts);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete source endpoint - FIXED VERSION
+app.delete('/sources/:id', async (req, res) => {
+  try {
+    const sourceId = req.params.id;
+    
+    if (!sourceId) {
+      return res.status(400).json({ error: 'Invalid source ID' });
+    }
+
+    console.log(`Starting deletion process for source ID: ${sourceId}`);
+
+    // 1. First, get all chunks for this source to delete from Qdrant
+    const { data: chunks, error: chunksError } = await supabase
+      .from('source_chunks')
+      .select('id')
+      .eq('source_id', sourceId);
+
+    if (chunksError) {
+      console.error('Error fetching chunks:', chunksError);
+      throw chunksError;
+    }
+
+    console.log(`Found ${chunks?.length || 0} chunks to delete`);
+
+    // 2. Delete embeddings from Qdrant using filter (more reliable than individual IDs)
+    if (chunks && chunks.length > 0) {
+      try {
+        // Use filter to delete all points with this source_id
+        const deleteResult = await qdrant.delete('documents', {
+          wait: true,
+          filter: {
+            must: [
+              {
+                key: "source_id",
+                match: {
+                  value: sourceId
+                }
+              }
+            ]
+          }
+        });
+        
+        console.log(`Qdrant delete result:`, deleteResult);
+        console.log(`Successfully deleted embeddings for source ${sourceId} from Qdrant`);
+      } catch (qdrantError) {
+        console.error('Error deleting from Qdrant:', qdrantError);
+        // Log but continue with database deletion - don't fail the entire operation
+        console.log('Continuing with database cleanup despite Qdrant error...');
+      }
+    }
+
+    // 3. Delete chunks from database
+    const { error: deleteChunksError, count: deletedChunksCount } = await supabase
+      .from('source_chunks')
+      .delete()
+      .eq('source_id', sourceId);
+
+    if (deleteChunksError) {
+      console.error('Error deleting chunks:', deleteChunksError);
+      throw deleteChunksError;
+    }
+
+    console.log(`Deleted ${deletedChunksCount || chunks?.length || 0} chunks from database`);
+
+    // 4. Delete source from database
+    const { error: deleteSourceError, count: deletedSourceCount } = await supabase
+      .from('sources')
+      .delete()
+      .eq('id', sourceId);
+
+    if (deleteSourceError) {
+      console.error('Error deleting source:', deleteSourceError);
+      throw deleteSourceError;
+    }
+
+    if (deletedSourceCount === 0) {
+      return res.status(404).json({ error: 'Source not found' });
+    }
+
+    console.log(`Successfully deleted source ${sourceId}`);
+
+    res.json({
+      message: 'Source deleted successfully',
+      source_id: sourceId,
+      deleted_chunks: chunks?.length || 0,
+      deleted_from_qdrant: true
+    });
+
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete source',
+      details: error.message 
+    });
+  }
+});
+
+// Get all notes from a specific source
+app.get('/sources/:id/notes', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get all chunks for this source
+    const { data: chunks, error } = await supabase
+      .from('source_chunks')
+      .select('*')
+      .eq('source_id', id)
+      .order('chunk_index', { ascending: true });
+    
+    if (error) throw error;
+    
+    // Get source info
+    const { data: source, error: sourceError } = await supabase
+      .from('sources')
+      .select('id, title, author, source_type')
+      .eq('id', id)
+      .single();
+    
+    if (sourceError) throw sourceError;
+    
+    // Format results to match search endpoint format
+    const results = chunks.map(chunk => ({
+      content: chunk.content,
+      source_title: source.title,
+      chunk_index: chunk.chunk_index,
+      source_id: chunk.source_id,
+      structure_path: chunk.structure_path,
+      score: 1.0 // All notes from source get 100% match
+    }));
+    
+    res.json(results);
+    
+  } catch (error) {
+    console.error('Get source notes error:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve source notes',
+      details: error.message 
+    });
+  }
+});
+
+// Update source details
+app.put('/sources/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, author } = req.body;
+    
+    if (!title || title.trim() === '') {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+    
+    // Update the source in the database
+    const { data, error } = await supabase
+      .from('sources')
+      .update({
+        title: title.trim(),
+        author: author ? author.trim() : 'Unknown Author',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select();
+    
+    if (error) throw error;
+    
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Source not found' });
+    }
+    
+    res.json({ 
+      message: 'Source updated successfully',
+      source: data[0]
+    });
+    
+  } catch (error) {
+    console.error('Update source error:', error);
+    res.status(500).json({ 
+      error: 'Failed to update source',
+      details: error.message 
+    });
+  }
+});
+
+// Search endpoint
+app.post('/search', async (req, res) => {
+  try {
+    const { query, limit = 5 } = req.body;
+    
+    // 1. Generate embedding for search query
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query,
+    });
+    
+    const queryEmbedding = embeddingResponse.data[0].embedding;
+    
+    // 2. Search similar vectors in Qdrant
+    const searchResult = await qdrant.search('documents', {
+      vector: queryEmbedding,
+      limit: limit,
+      with_payload: true
+    });
+    
+    // 3. Format results
+    const results = searchResult.map(point => ({
+      score: point.score,
+      content: point.payload.content,
+      source_title: point.payload.source_title,
+      chunk_index: point.payload.chunk_index,
+      source_id: point.payload.source_id,
+      structure_path: point.payload.structure_path,
+      page_title: point.payload.page_title,
+      block_type: point.payload.block_type,
+      primary_category: point.payload.primary_category,
+      secondary_category: point.payload.secondary_category,
+      primary_confidence: point.payload.primary_confidence,
+      secondary_confidence: point.payload.secondary_confidence
+    }));
+
+    res.json(results);
+
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ 
+      error: 'Search failed',
+      details: error.message 
+    });
+  }
+});
+
+// Search with knowledge category filtering
+app.post('/search-filtered', async (req, res) => {
+  try {
+    const { query, limit = 5, primary_category, secondary_category, min_confidence = 0.3 } = req.body;
+    
+    // 1. Generate embedding for search query
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query,
+    });
+    
+    const queryEmbedding = embeddingResponse.data[0].embedding;
+    
+    // 2. Search similar vectors in Qdrant (without filter for now)
+    // Note: Qdrant filtering requires indexes that may not be set up
+    // We'll filter results after retrieval instead
+    const searchResult = await qdrant.search('documents', {
+      vector: queryEmbedding,
+      limit: limit * 10, // Get many more results to filter from for better category matching
+      with_payload: true
+    });
+    
+    // 3. Format results
+    let results = searchResult.map(point => ({
+      score: point.score,
+      content: point.payload.content,
+      source_title: point.payload.source_title,
+      chunk_index: point.payload.chunk_index,
+      source_id: point.payload.source_id,
+      structure_path: point.payload.structure_path,
+      page_title: point.payload.page_title,
+      block_type: point.payload.block_type,
+      primary_category: point.payload.primary_category,
+      secondary_category: point.payload.secondary_category,
+      primary_confidence: point.payload.primary_confidence,
+      secondary_confidence: point.payload.secondary_confidence
+    }));
+
+    // 4. Apply category and confidence filters
+    if (primary_category || secondary_category || min_confidence) {
+      results = results.filter(result => {
+        // Check primary category filter
+        if (primary_category && result.primary_category !== primary_category) {
+          return false;
+        }
+        
+        // Check secondary category filter
+        if (secondary_category && result.secondary_category !== secondary_category) {
+          return false;
+        }
+        
+        // Check minimum confidence filter
+        if (min_confidence && result.primary_confidence < min_confidence) {
+          return false;
+        }
+        
+        return true;
+      });
+    }
+
+    // 5. Limit results to requested amount
+    results = results.slice(0, limit);
+
+    res.json(results);
+
+  } catch (error) {
+    console.error('Filtered search error:', error);
+    res.status(500).json({ 
+      error: 'Filtered search failed',
+      details: error.message 
+    });
+  }
+});
+
+// Re-classify all chunks for a source
+app.post('/sources/:id/reclassify', async (req, res) => {
+  try {
+    const sourceId = req.params.id;
+    
+    // Get all chunks for this source
+    const { data: chunks, error: chunksError } = await supabase
+      .from('source_chunks')
+      .select('*')
+      .eq('source_id', sourceId);
+    
+    if (chunksError) throw chunksError;
+    
+    if (!chunks || chunks.length === 0) {
+      return res.json({ message: 'No chunks found for this source' });
+    }
+    
+    console.log(`Re-classifying ${chunks.length} chunks for source ${sourceId}...`);
+    
+    let reclassified = 0;
+    let errors = 0;
+    
+    for (const chunk of chunks) {
+      try {
+        console.log(`Re-classifying chunk ${chunk.chunk_index}...`);
+        const classification = await classifyTextChunk(chunk.content);
+        
+        // Update the chunk with new classification
+        const { error: updateError } = await supabase
+          .from('source_chunks')
+          .update({
+            primary_category: classification.primary_category,
+            secondary_category: classification.secondary_category,
+            primary_confidence: classification.primary_confidence,
+            secondary_confidence: classification.secondary_confidence
+          })
+          .eq('id', chunk.id);
+        
+        if (updateError) throw updateError;
+        
+        // Note: Qdrant payload will be updated on next search/rebuild
+        // For now, we're only updating the database classification
+        
+        reclassified++;
+        console.log(`✓ Re-classified: ${classification.primary_category} (${classification.primary_confidence})${classification.secondary_category ? ` + ${classification.secondary_category} (${classification.secondary_confidence})` : ''}`);
+        
+      } catch (error) {
+        console.error(`Error re-classifying chunk ${chunk.chunk_index}:`, error);
+        errors++;
+      }
+    }
+    
+    res.json({
+      message: `Re-classification complete`,
+      total_chunks: chunks.length,
+      reclassified: reclassified,
+      errors: errors
+    });
+    
+  } catch (error) {
+    console.error('Re-classification error:', error);
+    res.status(500).json({ 
+      error: 'Re-classification failed',
+      details: error.message 
+    });
+  }
+});
+
+// Get knowledge category statistics
+app.get('/knowledge-stats', async (req, res) => {
+  try {
+    const { data: stats, error } = await supabase
+      .from('source_chunks')
+      .select('primary_category, secondary_category, primary_confidence, secondary_confidence');
+    
+    if (error) throw error;
+    
+    // Calculate statistics
+    const categoryCounts = {};
+    const confidenceStats = {};
+    
+    stats.forEach(chunk => {
+      // Primary category counts
+      if (chunk.primary_category) {
+        categoryCounts[chunk.primary_category] = (categoryCounts[chunk.primary_category] || 0) + 1;
+      }
+      
+      // Secondary category counts
+      if (chunk.secondary_category) {
+        categoryCounts[`${chunk.secondary_category} (secondary)`] = (categoryCounts[`${chunk.secondary_category} (secondary)`] || 0) + 1;
+      }
+      
+      // Confidence statistics
+      if (chunk.primary_confidence !== null) {
+        if (!confidenceStats.primary) {
+          confidenceStats.primary = { sum: 0, count: 0, min: 1, max: 0 };
+        }
+        confidenceStats.primary.sum += chunk.primary_confidence;
+        confidenceStats.primary.count++;
+        confidenceStats.primary.min = Math.min(confidenceStats.primary.min, chunk.primary_confidence);
+        confidenceStats.primary.max = Math.max(confidenceStats.primary.max, chunk.primary_confidence);
+      }
+      
+      if (chunk.secondary_confidence !== null) {
+        if (!confidenceStats.secondary) {
+          confidenceStats.secondary = { sum: 0, count: 0, min: 1, max: 0 };
+        }
+        confidenceStats.secondary.sum += chunk.secondary_confidence;
+        confidenceStats.secondary.count++;
+        confidenceStats.secondary.min = Math.min(confidenceStats.secondary.min, chunk.secondary_confidence);
+        confidenceStats.secondary.max = Math.max(confidenceStats.secondary.max, chunk.secondary_confidence);
+      }
+    });
+    
+    // Calculate averages
+    if (confidenceStats.primary) {
+      confidenceStats.primary.avg = confidenceStats.primary.sum / confidenceStats.primary.count;
+    }
+    if (confidenceStats.secondary) {
+      confidenceStats.secondary.avg = confidenceStats.secondary.sum / confidenceStats.secondary.count;
+    }
+    
+    res.json({
+      total_chunks: stats.length,
+      category_counts: categoryCounts,
+      confidence_stats: confidenceStats
+    });
+    
+  } catch (error) {
+    console.error('Knowledge stats error:', error);
+    res.status(500).json({ 
+      error: 'Failed to get knowledge statistics',
+      details: error.message 
+    });
+  }
+});
+
+// Clean up orphaned chunks (chunks without corresponding sources)
+app.post('/cleanup-orphaned-chunks', async (req, res) => {
+  try {
+    console.log('Starting orphaned chunks cleanup...');
+
+    // 1. Get all source IDs that exist in the database
+    const { data: sources, error: sourcesError } = await supabase
+      .from('sources')
+      .select('id');
+
+    if (sourcesError) throw sourcesError;
+
+    const validSourceIds = new Set(sources.map(s => s.id));
+    console.log(`Found ${validSourceIds.size} valid sources`);
+
+    // 2. Get all chunks and identify orphaned ones
+    const { data: allChunks, error: chunksError } = await supabase
+      .from('source_chunks')
+      .select('id, source_id');
+
+    if (chunksError) throw chunksError;
+
+    const orphanedChunks = allChunks.filter(chunk => !validSourceIds.has(chunk.source_id));
+    console.log(`Found ${orphanedChunks.length} orphaned chunks`);
+
+    if (orphanedChunks.length === 0) {
+      return res.json({ message: 'No orphaned chunks found' });
+    }
+
+    // 3. Delete orphaned chunks from database
+    const orphanedIds = orphanedChunks.map(chunk => chunk.id);
+    const { error: deleteError, count: deletedCount } = await supabase
+      .from('source_chunks')
+      .delete()
+      .in('id', orphanedIds);
+
+    if (deleteError) throw deleteError;
+
+    console.log(`Deleted ${deletedCount} orphaned chunks from database`);
+
+    // 4. Delete orphaned chunks from Qdrant
+    const orphanedSourceIds = [...new Set(orphanedChunks.map(chunk => chunk.source_id))];
+    let qdrantDeletedCount = 0;
+
+    for (const sourceId of orphanedSourceIds) {
+      try {
+        const deleteResult = await qdrant.delete('documents', {
+          wait: true,
+          filter: {
+            must: [
+              {
+                key: "source_id",
+                match: {
+                  value: sourceId
+                }
+              }
+            ]
+          }
+        });
+        console.log(`Deleted chunks for source ${sourceId} from Qdrant`);
+        qdrantDeletedCount++;
+      } catch (qdrantError) {
+        console.error(`Error deleting source ${sourceId} from Qdrant:`, qdrantError);
+      }
+    }
+
+    res.json({
+      message: 'Orphaned chunks cleanup completed',
+      orphaned_chunks_found: orphanedChunks.length,
+      deleted_from_database: deletedCount,
+      deleted_from_qdrant: qdrantDeletedCount,
+      orphaned_source_ids: orphanedSourceIds
+    });
+
+  } catch (error) {
+    console.error('Cleanup error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add retry logic for Qdrant uploads
+async function uploadToQdrantWithRetry(chunkData, embedding, payload, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await qdrant.upsert('documents', {
+        wait: true,
+        points: [{
+          id: chunkData.id,
+          vector: embedding,
+          payload: payload
+        }]
+      });
+      return; // Success - exit the retry loop
+    } catch (error) {
+      console.log(`Qdrant upload attempt ${attempt} failed:`, error.message);
+      
+      if (attempt === maxRetries) {
+        throw error; // Final attempt failed - throw the error
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s delays
+      console.log(`Retrying in ${delay/1000} seconds...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
+// Initialize NLTK sentence tokenizer
+let sentenceTokenizer = null;
+async function initializeNLTK() {
+  try {
+    // Download required NLTK data
+    await nltk.download('punkt', { quiet: true });
+    sentenceTokenizer = new nltk.PunktSentenceTokenizer();
+  } catch (error) {
+    console.warn('NLTK initialization failed, falling back to regex splitting:', error.message);
+    sentenceTokenizer = null;
+  }
+}
+
+// Sophisticated sentence splitting using NLTK with regex fallback
+function splitIntoSentences(text) {
+  if (sentenceTokenizer) {
+    try {
+      return sentenceTokenizer.tokenize(text);
+    } catch (error) {
+      console.warn('NLTK sentence splitting failed, using regex fallback:', error.message);
+    }
+  }
+  
+  // Fallback to regex-based sentence splitting
+  return text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+}
+
+// Detect paragraph breaks with multiple strategies
+function detectParagraphBreaks(text) {
+  // Primary: Double newlines (\n\n)
+  if (text.includes('\n\n')) {
+    return text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+  }
+  
+  // Fallback: HTML <p> tags
+  if (text.includes('<p>')) {
+    const pMatches = text.match(/<p[^>]*>(.*?)<\/p>/gs);
+    if (pMatches) {
+      return pMatches.map(p => p.replace(/<[^>]*>/g, '').trim()).filter(p => p.length > 0);
+    }
+  }
+  
+  // For PDF content: Use a much more conservative approach
+  // Create larger chunks by grouping many more sentences together
+  const sentences = splitIntoSentences(text);
+  const paragraphs = [];
+  let currentParagraph = '';
+  
+  for (let i = 0; i < sentences.length; i++) {
+    const sentence = sentences[i].trim();
+    if (sentence.length === 0) continue;
+    
+    // Add sentence to current paragraph
+    currentParagraph += (currentParagraph ? ' ' : '') + sentence;
+    
+    // Much more conservative: break every 20-30 sentences or 3000+ characters
+    // This should create much larger, more coherent chunks
+    const sentenceCount = currentParagraph.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+    const shouldBreak = sentenceCount >= 20 || currentParagraph.length > 3000;
+    
+    if (shouldBreak || i === sentences.length - 1) {
+      if (currentParagraph.trim().length > 0) {
+        paragraphs.push(currentParagraph.trim());
+      }
+      currentParagraph = '';
+    }
+  }
+  
+  // If we didn't find any paragraphs, treat the whole text as one paragraph
+  return paragraphs.length > 0 ? paragraphs : [text];
+}
+
+// New paragraph-based chunking function
+function splitIntoParagraphChunks(text, maxChunkSize = 2000) {
+  const paragraphs = detectParagraphBreaks(text);
+  const chunks = [];
+  
+  for (const paragraph of paragraphs) {
+    const paragraphLength = paragraph.length;
+    
+    if (paragraphLength <= maxChunkSize) {
+      // Paragraph fits in one chunk
+      chunks.push(paragraph);
+    } else if (paragraphLength <= maxChunkSize * 2) {
+      // Split paragraph in half at sentence boundary
+      const sentences = splitIntoSentences(paragraph);
+      const midPoint = Math.ceil(sentences.length / 2);
+      
+      const firstHalf = sentences.slice(0, midPoint).join(' ').trim();
+      const secondHalf = sentences.slice(midPoint).join(' ').trim();
+      
+      if (firstHalf.length > 0) chunks.push(firstHalf);
+      if (secondHalf.length > 0) chunks.push(secondHalf);
+    } else if (paragraphLength <= maxChunkSize * 3) {
+      // Split paragraph into thirds at sentence boundaries
+      const sentences = splitIntoSentences(paragraph);
+      const thirdPoint = Math.ceil(sentences.length / 3);
+      const twoThirdPoint = Math.ceil(sentences.length * 2 / 3);
+      
+      const firstThird = sentences.slice(0, thirdPoint).join(' ').trim();
+      const secondThird = sentences.slice(thirdPoint, twoThirdPoint).join(' ').trim();
+      const thirdThird = sentences.slice(twoThirdPoint).join(' ').trim();
+      
+      if (firstThird.length > 0) chunks.push(firstThird);
+      if (secondThird.length > 0) chunks.push(secondThird);
+      if (thirdThird.length > 0) chunks.push(thirdThird);
+    } else {
+      // Very long paragraph - split into multiple chunks of maxChunkSize
+      const sentences = splitIntoSentences(paragraph);
+      let currentChunk = '';
+      
+      for (const sentence of sentences) {
+        const testChunk = currentChunk + (currentChunk ? ' ' : '') + sentence;
+        
+        if (testChunk.length > maxChunkSize && currentChunk.length > 0) {
+          chunks.push(currentChunk.trim());
+          currentChunk = sentence;
+        } else {
+          currentChunk = testChunk;
+        }
+      }
+      
+      if (currentChunk.trim().length > 0) {
+        chunks.push(currentChunk.trim());
+      }
+    }
+  }
+  
+  return chunks;
+}
+
+// Legacy function for backward compatibility
+function splitIntoChunks(text, maxChunkSize) {
+  return splitIntoParagraphChunks(text, maxChunkSize);
+}
+
+// Create Qdrant collection if it doesn't exist
+async function initializeQdrant() {
+  try {
+    const collections = await qdrant.getCollections();
+    const hasDocumentsCollection = collections.collections.some(c => c.name === 'documents');
+    
+    if (!hasDocumentsCollection) {
+      await qdrant.createCollection('documents', {
+        vectors: { size: 1536, distance: 'Cosine' }
+      });
+      console.log('Created Qdrant collection: documents');
+    }
+  } catch (error) {
+    console.error('Failed to initialize Qdrant:', error);
+  }
+}
+
+// ===== PROJECT ENDPOINTS =====
+
+// Get all projects
+app.get('/projects', async (req, res) => {
+  try {
+    const { data: projects, error } = await supabase
+      .from('projects')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json(projects);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create a new project
+app.post('/projects', async (req, res) => {
+  try {
+    const { title, description, content } = req.body;
+    
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const { data: project, error } = await supabase
+      .from('projects')
+      .insert({
+        title,
+        description: description || '',
+        content: content || '',
+        user_id: null // for testing
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update a project
+app.put('/projects/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, content } = req.body;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    const updateData = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (content !== undefined) updateData.content = content;
+    updateData.updated_at = new Date().toISOString();
+
+    const { data: project, error } = await supabase
+      .from('projects')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete a project
+app.delete('/projects/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    const { error, count } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    if (count === 0) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    res.json({ message: 'Project deleted successfully', project_id: id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get a specific project
+app.get('/projects/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    const { data: project, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Initialize services on startup
+async function initializeServices() {
+  try {
+    await initializeQdrant();
+    await initializeNLTK();
+    console.log('All services initialized successfully');
+  } catch (error) {
+    console.error('Error initializing services:', error);
+  }
+}
+
+// Initialize services and start server
+initializeServices();
+
+// Start server
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+  console.log('Supabase URL:', process.env.SUPABASE_URL ? 'Connected' : 'Missing');
+});
