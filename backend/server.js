@@ -6,6 +6,91 @@ const cors = require('cors');
 const { createClient } = require('@supabase/supabase-js');
 const { QdrantClient } = require('@qdrant/js-client-rest');
 const OpenAI = require('openai');
+const pdfParse = require('pdf-parse');
+const AdmZip = require('adm-zip');
+const nltk = require('nltk');
+
+// ===== SIMPLE PDF PROCESSING FUNCTIONS =====
+
+async function processPDF(buffer) {
+  try {
+    const data = await pdfParse(buffer);
+    
+    // Return raw text with basic cleanup
+    const cleanedText = data.text
+      .replace(/\r\n/g, '\n')
+      .replace(/\r/g, '\n')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    return {
+      content: cleanedText,
+      pages: data.numpages,
+      info: data.info
+    };
+  } catch (error) {
+    throw new Error(`PDF processing failed: ${error.message}`);
+  }
+}
+
+// Simple chunking function that ensures chunks end with periods
+function createPDFChunks(content, minChunkSize = 800, maxChunkSize = 1200) {
+  const chunks = [];
+  let currentChunk = '';
+  let chunkIndex = 0;
+  
+  // Split content into sentences
+  const sentences = content.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+  
+  for (const sentence of sentences) {
+    const trimmedSentence = sentence.trim();
+    
+    // Skip very short sentences
+    if (trimmedSentence.length < 20) {
+      continue;
+    }
+    
+    // Check if adding this sentence would exceed max chunk size
+    const testChunk = currentChunk + (currentChunk ? ' ' : '') + trimmedSentence;
+    
+    if (testChunk.length > maxChunkSize && currentChunk.trim()) {
+      // Current chunk is ready - ensure it ends with a period
+      let finalChunk = currentChunk.trim();
+      if (!finalChunk.endsWith('.') && !finalChunk.endsWith('!') && !finalChunk.endsWith('?')) {
+        finalChunk += '.';
+      }
+      
+      chunks.push({
+        content: finalChunk,
+        structure_path: `Section ${Math.floor(chunkIndex / 3) + 1} > Chunk ${chunkIndex + 1}`,
+        chunk_index: chunkIndex,
+        block_type: 'pdf_chunk'
+      });
+      chunkIndex++;
+      currentChunk = trimmedSentence;
+    } else {
+      // Add sentence to current chunk
+      currentChunk = testChunk;
+    }
+  }
+  
+  // Handle the last chunk
+  if (currentChunk.trim()) {
+    let finalChunk = currentChunk.trim();
+    if (!finalChunk.endsWith('.') && !finalChunk.endsWith('!') && !finalChunk.endsWith('?')) {
+      finalChunk += '.';
+    }
+    
+    chunks.push({
+      content: finalChunk,
+      structure_path: `Section ${Math.floor(chunkIndex / 3) + 1} > Chunk ${chunkIndex + 1}`,
+      chunk_index: chunkIndex,
+      block_type: 'pdf_chunk'
+    });
+  }
+  
+  return chunks;
+}
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -16,6 +101,7 @@ const openai = new OpenAI({
 const qdrant = new QdrantClient({
   url: process.env.QDRANT_URL,
   apiKey: process.env.QDRANT_API_KEY,
+  timeout: 60000, // 60 second timeout
 });
 
 // Initialize Express app
@@ -24,7 +110,15 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '500mb' })); // Increased for large Roam graphs
+app.use(express.urlencoded({ extended: true, limit: '500mb' }));
+
+// Increase timeout for large file processing
+app.use((req, res, next) => {
+  req.setTimeout(30 * 60 * 1000); // 30 minutes for large files
+  res.setTimeout(30 * 60 * 1000); // 30 minutes for large files
+  next();
+});
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -86,7 +180,7 @@ app.get('/test-embeddings', async (req, res) => {
       error: error.message 
     });
   }
-}); // Added this missing closing brace
+});
 
 // Test database tables
 app.get('/test-tables', async (req, res) => {
@@ -135,6 +229,1612 @@ app.get('/test-tables', async (req, res) => {
     });
   }
 });
+
+// ===== KNOWLEDGE CLASSIFICATION FUNCTIONS =====
+
+// Knowledge Elements Framework categories
+const KNOWLEDGE_CATEGORIES = [
+  'Semantic',    // Meaning - Language
+  'Logical',     // Truth - Reason  
+  'Personal',    // Self - Introspection
+  'Narrative',   // Time - History
+  'Practical',   // Goodness - Experience
+  'Symbolic',    // Beauty - Imagination
+  'Reference'    // Authority - Testimony
+];
+
+// Classify a text chunk using OpenAI
+async function classifyTextChunk(text) {
+  try {
+    const prompt = `Analyze the following text chunk and classify it according to the Knowledge Elements Framework. 
+
+The seven categories are:
+1. Semantic (Meaning) - Concepts, definitions, categories, topics, abstract principles
+2. Logical (Truth) - Arguments, evidence, claims, reasoning, analytical structures  
+3. Personal (Self) - First-person reflections, emotions, beliefs, individual experiences, subjective insights
+4. Narrative (Time) - Historical events, people, places, chronological accounts, stories
+5. Practical (Goodness) - Strategies, solutions, methods, actionable advice, procedures
+6. Symbolic (Beauty) - Metaphors, themes, symbols, figurative meaning, artistic interpretation, poetic language
+7. Reference (Authority) - Citations, sources, scholarly apparatus, external validation
+
+Text to classify:
+"${text}"
+
+Respond with a JSON object in this exact format:
+{
+  "primary_category": "CategoryName",
+  "primary_confidence": 0.85,
+  "secondary_category": "CategoryName", 
+  "secondary_confidence": 0.65
+}
+
+Classification Guidelines:
+- PERSONAL: Only choose when the text expresses genuine personal experience, emotion, belief, or subjective insight. Mere use of "I" or "my" in analytical or descriptive contexts does NOT qualify as Personal.
+- SYMBOLIC: Look for metaphors, similes, figurative language, poetic expressions, symbolic references, and artistic interpretation. Be generous with this category - even subtle metaphors should be recognized.
+- Choose the most dominant knowledge type as primary_category
+- Only include secondary_category if there's a meaningful secondary presence (confidence > 0.3)
+- Use exact category names: Semantic, Logical, Personal, Narrative, Practical, Symbolic, Reference
+- Confidence scores should be between 0.0 and 1.0
+- If no clear secondary category exists, set secondary_category to null and secondary_confidence to null`;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini", // Using mini for cost efficiency
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert text classifier specializing in the Knowledge Elements Framework. Always respond with valid JSON in the exact format requested."
+        },
+        {
+          role: "user", 
+          content: prompt
+        }
+      ],
+      temperature: 0.1, // Low temperature for consistent classification
+      max_tokens: 200
+    });
+
+    const result = JSON.parse(response.choices[0].message.content);
+    
+    // Validate the response
+    if (!KNOWLEDGE_CATEGORIES.includes(result.primary_category)) {
+      throw new Error(`Invalid primary category: ${result.primary_category}`);
+    }
+    
+    if (result.secondary_category && !KNOWLEDGE_CATEGORIES.includes(result.secondary_category)) {
+      throw new Error(`Invalid secondary category: ${result.secondary_category}`);
+    }
+    
+    // Ensure confidence scores are valid
+    if (result.primary_confidence < 0 || result.primary_confidence > 1) {
+      result.primary_confidence = 0.5; // Default fallback
+    }
+    
+    if (result.secondary_confidence !== null && (result.secondary_confidence < 0 || result.secondary_confidence > 1)) {
+      result.secondary_confidence = null;
+    }
+    
+    // If secondary confidence is too low, remove secondary category
+    if (result.secondary_confidence !== null && result.secondary_confidence < 0.3) {
+      result.secondary_category = null;
+      result.secondary_confidence = null;
+    }
+    
+    return result;
+    
+  } catch (error) {
+    console.error('Classification error:', error);
+    
+    // Fallback classification - try to determine category from text patterns
+    return fallbackClassification(text);
+  }
+}
+
+// Fallback classification using pattern matching
+function fallbackClassification(text) {
+  const lowerText = text.toLowerCase();
+  
+  // Simple pattern matching for fallback
+  let primaryCategory = 'Semantic'; // Default
+  let primaryConfidence = 0.5;
+  let secondaryCategory = null;
+  let secondaryConfidence = null;
+  
+  // Check for Symbolic indicators (more generous)
+  const symbolicPatterns = [
+    /\b(fresh|breeze|wind|light|dark|shadow|dawn|twilight|storm|calm)\b/i,
+    /\b(like|as|metaphor|symbol|represents|signifies|embodies)\b/i,
+    /\b(beauty|beautiful|poetic|artistic|imagery|vision)\b/i,
+    /\b(centuries|eternal|timeless|ancient|modern)\b/i
+  ];
+  
+  if (symbolicPatterns.some(pattern => pattern.test(text))) {
+    primaryCategory = 'Symbolic';
+    primaryConfidence = 0.7;
+  }
+  // Check for Personal indicators (more restrictive)
+  else if ((lowerText.includes(' i feel ') || lowerText.includes(' i believe ') || 
+           lowerText.includes(' i experienced ') || lowerText.includes(' i remember ') ||
+           lowerText.includes(' my experience ') || lowerText.includes(' personally ')) &&
+           !lowerText.includes(' i think ') && !lowerText.includes(' i would ')) {
+    primaryCategory = 'Personal';
+    primaryConfidence = 0.7;
+  }
+  // Check for Narrative indicators  
+  else if (/\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4}|january|february|march|april|may|june|july|august|september|october|november|december/i.test(text)) {
+    primaryCategory = 'Narrative';
+    primaryConfidence = 0.6;
+  }
+  // Check for Practical indicators
+  else if (lowerText.includes(' how to ') || lowerText.includes(' step ') || lowerText.includes(' method ') ||
+           lowerText.includes(' process ') || lowerText.includes(' procedure ')) {
+    primaryCategory = 'Practical';
+    primaryConfidence = 0.6;
+  }
+  // Check for Logical indicators
+  else if (lowerText.includes(' therefore ') || lowerText.includes(' because ') || lowerText.includes(' however ') ||
+           lowerText.includes(' evidence ') || lowerText.includes(' argument ')) {
+    primaryCategory = 'Logical';
+    primaryConfidence = 0.6;
+  }
+  // Check for Reference indicators
+  else if (lowerText.includes(' according to ') || lowerText.includes(' cited ') || lowerText.includes(' reference ') ||
+           lowerText.includes(' source ') || lowerText.includes(' bibliography ')) {
+    primaryCategory = 'Reference';
+    primaryConfidence = 0.6;
+  }
+  
+  return {
+    primary_category: primaryCategory,
+    primary_confidence: primaryConfidence,
+    secondary_category: secondaryCategory,
+    secondary_confidence: secondaryConfidence
+  };
+}
+
+// ===== ROAM PARSING FUNCTIONS =====
+
+function parseRoamJSON(jsonContent) {
+  const chunks = [];
+  let data;
+  
+  try {
+    data = JSON.parse(jsonContent);
+  } catch (error) {
+    throw new Error('Invalid JSON format');
+  }
+  
+  // Roam exports are arrays of pages
+  if (!Array.isArray(data)) {
+    throw new Error('Expected Roam export to be an array of pages');
+  }
+  
+  // Create a map of block UIDs to their content for resolving block references
+  const blockMap = new Map();
+  
+  // First pass: build the block map
+  data.forEach(page => {
+    if (page.children && Array.isArray(page.children)) {
+      buildBlockMap(page.children, blockMap);
+    }
+  });
+  
+  let chunkIndex = 0;
+  
+  // Process each page
+  data.forEach(page => {
+    const pageTitle = page.title || 'Untitled Page';
+    
+    // Add page title as a chunk if it exists and has meaningful content
+    if (pageTitle && pageTitle !== 'Untitled Page') {
+      chunks.push({
+        content: `Page: ${pageTitle}`,
+        structure_path: `Page: ${pageTitle}`,
+        chunk_index: chunkIndex++,
+        page_title: pageTitle,
+        block_type: 'page_title'
+      });
+    }
+    
+    // Process all blocks in the page
+    if (page.children && Array.isArray(page.children)) {
+      chunkIndex = processBlocks(page.children, chunks, pageTitle, '', chunkIndex, blockMap);
+    }
+  });
+  
+  return chunks;
+}
+
+// Build a map of block UIDs to their content for resolving block references
+function buildBlockMap(blocks, blockMap) {
+  blocks.forEach(block => {
+    if (block.uid && block.string) {
+      blockMap.set(block.uid, block.string);
+    }
+    
+    // Recursively process nested blocks
+    if (block.children && Array.isArray(block.children)) {
+      buildBlockMap(block.children, blockMap);
+    }
+  });
+}
+
+// Enhanced Roam text cleaning function
+function cleanRoamText(text, blockMap = new Map()) {
+  if (!text) return text;
+  
+  let cleanedText = text;
+  
+  // 1. Handle block references: ((-AbmaTFUf)) -> replace with actual content
+  cleanedText = cleanedText.replace(/\(\(([^)]+)\)\)/g, (match, uid) => {
+    const blockContent = blockMap.get(uid);
+    if (blockContent) {
+      // Clean the referenced block content and return it
+      return cleanRoamText(blockContent, blockMap);
+    }
+    return match; // Keep original if not found
+  });
+  
+  // 2. Handle internal links: [[Internal Link]] -> Internal Link
+  cleanedText = cleanedText.replace(/\[\[([^\]]+)\]\]/g, '$1');
+  
+  // 3. Handle external links: [External Link](url) -> External Link
+  cleanedText = cleanedText.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1');
+  
+  // 4. Handle markdown formatting: **^^Revelation^^** -> Revelation
+  cleanedText = cleanedText.replace(/\*\*([^*]+)\*\*/g, '$1'); // Remove bold
+  cleanedText = cleanedText.replace(/\^\^([^^]+)\^\^/g, '$1'); // Remove highlight
+  cleanedText = cleanedText.replace(/__([^_]+)__/g, '$1'); // Remove underline
+  cleanedText = cleanedText.replace(/\*([^*]+)\*/g, '$1'); // Remove italic
+  cleanedText = cleanedText.replace(/_([^_]+)_/g, '$1'); // Remove italic
+  
+  // 5. Handle tags: #[[tag]] -> #tag
+  cleanedText = cleanedText.replace(/#\[\[([^\]]+)\]\]/g, '#$1');
+  
+  // 6. Remove TODO/DONE markers
+  cleanedText = cleanedText.replace(/\{\{(?:TODO|DONE)\}\}/g, '');
+  
+  // 7. Clean up extra whitespace
+  cleanedText = cleanedText
+    .replace(/\s+/g, ' ') // Multiple spaces to single space
+    .replace(/\n\s*\n/g, '\n\n') // Multiple newlines to double newlines
+    .trim();
+  
+  return cleanedText;
+}
+
+function processBlocks(blocks, chunks, pageTitle, parentPath = '', startIndex = 0, blockMap = new Map()) {
+  let chunkIndex = startIndex;
+  
+  blocks.forEach((block, index) => {
+    // Extract the text content from the block
+    let blockText = '';
+    
+    if (block.string) {
+      blockText = block.string;
+    } else if (typeof block === 'string') {
+      blockText = block;
+    }
+    
+    // Clean up Roam syntax with improved formatting
+    if (blockText) {
+      blockText = cleanRoamText(blockText, blockMap);
+    }
+      
+      // Skip blocks that are 30 characters or less (increased from 15)
+      if (blockText.length > 30 && isCompleteSentence(blockText)) {
+        const structurePath = parentPath 
+          ? `${pageTitle} > ${parentPath} > Block ${index + 1}`
+          : `${pageTitle} > Block ${index + 1}`;
+        
+        chunks.push({
+          content: blockText,
+          structure_path: structurePath,
+          chunk_index: chunkIndex++,
+          page_title: pageTitle,
+          block_type: 'block',
+          block_uid: block.uid || null
+        });
+      }
+    
+    // Recursively process nested blocks
+    if (block.children && Array.isArray(block.children)) {
+      const newParentPath = parentPath 
+        ? `${parentPath} > Block ${index + 1}`
+        : `Block ${index + 1}`;
+      chunkIndex = processBlocks(block.children, chunks, pageTitle, newParentPath, chunkIndex, blockMap);
+    }
+  });
+  
+  return chunkIndex;
+}
+
+// Rough token estimation (1 token ≈ 4 characters for English text)
+function estimateTokens(text) {
+  return Math.ceil(text.length / 4);
+}
+
+// Check if text is a complete sentence (not a title, fragment, or heading)
+function isCompleteSentence(text) {
+  const trimmed = text.trim();
+  
+  // Must be at least 30 characters
+  if (trimmed.length < 30) return false;
+  
+  // Skip if it's all caps (likely a title or heading)
+  if (trimmed === trimmed.toUpperCase() && trimmed.length < 200) return false;
+  
+  // Skip if it starts with common non-sentence patterns
+  const nonSentencePatterns = [
+    /^#+\s/,           // Markdown headers
+    /^Chapter\s+\d+/i, // Chapter headers
+    /^Section\s+\d+/i, // Section headers
+    /^Page\s+\d+/i,    // Page numbers
+    /^\d+\.\s*$/,      // Just numbers
+    /^[A-Z][a-z]*\s*:$/, // Labels like "Author:", "Title:"
+    /^[A-Z\s]+$/,      // All caps short phrases
+  ];
+  
+  for (const pattern of nonSentencePatterns) {
+    if (pattern.test(trimmed)) return false;
+  }
+  
+  // Must contain at least one complete sentence ending
+  const sentenceEndings = /[.!?]\s*$/;
+  if (!sentenceEndings.test(trimmed)) {
+    // Allow if it's a long paragraph that might be cut off
+    return trimmed.length > 200;
+  }
+  
+  // Must have some lowercase letters (not all caps)
+  if (!/[a-z]/.test(trimmed)) return false;
+  
+  return true;
+}
+
+function splitLongContent(content, maxTokens = 8000) {
+  const estimatedTokens = estimateTokens(content);
+  
+  if (estimatedTokens <= maxTokens) {
+    return [content];
+  }
+  
+  // Use paragraph-based chunking with character-based limits
+  // Convert token limit to character estimate (roughly 4 chars per token)
+  const maxChars = Math.floor(maxTokens * 4);
+  return splitIntoParagraphChunks(content, maxChars);
+}
+
+// ===== PDF PROCESSING FUNCTIONS =====
+
+async function processPDF(buffer) {
+  try {
+    const data = await pdfParse(buffer);
+    return {
+      content: data.text,
+      pages: data.numpages,
+      info: data.info
+    };
+  } catch (error) {
+    throw new Error(`PDF processing failed: ${error.message}`);
+  }
+}
+
+// ===== EPUB PROCESSING FUNCTIONS =====
+
+async function processEPUB(buffer) {
+  return new Promise((resolve, reject) => {
+    // Set a timeout for large files (5 minutes)
+    const timeout = setTimeout(() => {
+      reject(new Error('EPUB processing timeout - file too large or complex'));
+    }, 5 * 60 * 1000); // 5 minutes
+    
+    try {
+      // For now, let's treat ePub as a ZIP file and extract text manually
+      // This is more reliable than the epub library
+      const AdmZip = require('adm-zip');
+      const zip = new AdmZip(buffer);
+      
+      let fullText = '';
+      let chapters = [];
+      let metadata = {
+        title: 'Untitled',
+        creator: 'Unknown Author',
+        language: 'en'
+      };
+      
+      // Extract all files from the ePub
+      const zipEntries = zip.getEntries();
+      
+      for (let i = 0; i < zipEntries.length; i++) {
+        const entry = zipEntries[i];
+        
+        // Look for HTML/XHTML files (main content)
+        if (entry.entryName.match(/\.(x?html?|xml)$/i) && !entry.entryName.includes('META-INF')) {
+          try {
+            const content = entry.getData().toString('utf8');
+            
+            // Extract text from HTML with better formatting
+            let cleanText = content
+              // Preserve paragraph breaks
+              .replace(/<\/p>/gi, '\n\n')
+              .replace(/<br\s*\/?>/gi, '\n')
+              .replace(/<\/div>/gi, '\n')
+              .replace(/<\/h[1-6]>/gi, '\n\n')
+              .replace(/<h[1-6][^>]*>/gi, '\n\n# ')
+              .replace(/<p[^>]*>/gi, '')
+              .replace(/<div[^>]*>/gi, '')
+              // Remove other HTML tags
+              .replace(/<[^>]*>/g, '')
+              // Clean up whitespace
+              .replace(/\n\s*\n\s*\n/g, '\n\n') // Multiple newlines to double newlines
+              .replace(/[ \t]+/g, ' ') // Multiple spaces to single space
+              .replace(/\n /g, '\n') // Remove leading spaces on new lines
+              .replace(/ \n/g, '\n') // Remove trailing spaces before newlines
+              .trim();
+            
+            if (cleanText.length > 100) { // Only include substantial content
+              const chapterTitle = entry.entryName.split('/').pop().replace(/\.(x?html?|xml)$/i, '');
+              chapters.push({
+                title: chapterTitle,
+                content: cleanText,
+                chapter_index: chapters.length
+              });
+              fullText += `\n\n# ${chapterTitle}\n\n${cleanText}`;
+            }
+          } catch (error) {
+            console.log(`Skipping file ${entry.entryName}: ${error.message}`);
+          }
+        }
+        
+        // Look for metadata files
+        if (entry.entryName.includes('metadata') || entry.entryName.includes('package.opf')) {
+          try {
+            const content = entry.getData().toString('utf8');
+            // Simple metadata extraction
+            const titleMatch = content.match(/<dc:title[^>]*>([^<]+)<\/dc:title>/i);
+            const creatorMatch = content.match(/<dc:creator[^>]*>([^<]+)<\/dc:creator>/i);
+            
+            if (titleMatch) metadata.title = titleMatch[1];
+            if (creatorMatch) metadata.creator = creatorMatch[1];
+          } catch (error) {
+            // Ignore metadata parsing errors
+          }
+        }
+      }
+      
+      // Limit total content size
+      if (fullText.length > 2000000) { // 2MB max
+        fullText = fullText.substring(0, 2000000) + '\n\n[Content truncated due to size]';
+      }
+      
+      if (fullText.length === 0) {
+        throw new Error('No readable content found in EPUB');
+      }
+      
+      clearTimeout(timeout);
+      resolve({
+        content: fullText.trim(),
+        chapters: chapters,
+        metadata: metadata
+      });
+      
+    } catch (error) {
+      clearTimeout(timeout);
+      reject(new Error(`EPUB processing failed: ${error.message}`));
+    }
+  });
+}
+
+// ===== ENHANCED JSON PROCESSING =====
+
+function processGenericJSON(jsonContent, title) {
+  const chunks = [];
+  let chunkIndex = 0;
+  
+  function processValue(value, path = '', depth = 0) {
+    if (depth > 10) return; // Prevent infinite recursion
+    
+    if (typeof value === 'string' && value.trim().length > 30 && isCompleteSentence(value.trim())) {
+      const cleanText = value.trim();
+      const structurePath = path ? `${title} > ${path}` : title;
+      
+      chunks.push({
+        content: cleanText,
+        structure_path: structurePath,
+        chunk_index: chunkIndex++,
+        page_title: title,
+        block_type: 'json_value',
+        json_path: path
+      });
+    } else if (Array.isArray(value)) {
+      value.forEach((item, index) => {
+        processValue(item, `${path}[${index}]`, depth + 1);
+      });
+    } else if (value && typeof value === 'object') {
+      Object.entries(value).forEach(([key, val]) => {
+        const newPath = path ? `${path}.${key}` : key;
+        processValue(val, newPath, depth + 1);
+      });
+    }
+  }
+  
+  try {
+    const data = JSON.parse(jsonContent);
+    processValue(data);
+    return chunks;
+  } catch (error) {
+    throw new Error('Invalid JSON format');
+  }
+}
+
+
+// ===== UPLOAD AND PROCESS SOURCE =====
+
+app.post('/upload-source', async (req, res) => {
+  try {
+    const { title, author, content, source_type, file_buffer } = req.body;
+    
+    // 1. Process content based on source type
+    let processedContent;
+    let chunks;
+    
+    if (source_type === 'pdf') {
+      // Handle PDF files with simple chunking
+      if (!file_buffer) {
+        throw new Error('PDF file buffer is required');
+      }
+      const buffer = Buffer.from(file_buffer, 'base64');
+      const pdfData = await processPDF(buffer);
+      processedContent = pdfData.content;
+      
+      console.log(`PDF processed: ${pdfData.pages} pages, ${processedContent.length} characters`);
+      console.log(`First 200 chars: ${processedContent.substring(0, 200)}...`);
+      
+      // Create chunks from PDF content using simple character-based chunking
+      chunks = createPDFChunks(processedContent, 800, 1200);
+      
+      console.log(`PDF chunking: Created ${chunks.length} chunks (800-1200 chars each, ending with periods)`);
+      console.log(`First chunk:`, chunks[0]?.content?.substring(0, 200) + '...');
+      
+    } else if (source_type === 'epub') {
+      // Handle EPUB files
+      if (!file_buffer) {
+        throw new Error('EPUB file buffer is required');
+      }
+      
+    console.log(`Processing EPUB file: ${title} (${Math.round(file_buffer.length / 1024)} KB)`);
+    
+    const buffer = Buffer.from(file_buffer, 'base64');
+    console.log(`EPUB: Starting content extraction...`);
+    const epubData = await processEPUB(buffer);
+    processedContent = epubData.content;
+    
+    console.log(`EPUB processing complete. Content length: ${processedContent.length} characters`);
+      
+      // Create chunks from EPUB content using paragraph-based chunking
+      console.log(`EPUB: Creating text chunks...`);
+      const textChunks = splitIntoParagraphChunks(processedContent, 2000);
+      console.log(`EPUB: Created ${textChunks.length} raw chunks`);
+      
+      chunks = textChunks
+        .filter(chunk => chunk.length > 30 && isCompleteSentence(chunk))
+        .map((chunk, index) => ({
+          content: chunk,
+          structure_path: `Chapter ${Math.floor(index / 5) + 1} > Chunk ${index + 1}`,
+          chunk_index: index,
+          page_title: title,
+          block_type: 'epub_chunk'
+        }));
+      
+      console.log(`EPUB: Filtered to ${chunks.length} valid chunks (${Math.round((chunks.length / textChunks.length) * 100)}% kept)`);
+      
+    } else if (source_type === 'json') {
+      // Handle generic JSON files
+      processedContent = content;
+      chunks = processGenericJSON(content, title);
+      
+    } else if (source_type === 'roam') {
+      // Handle Roam Research exports
+      processedContent = content;
+      chunks = parseRoamJSON(content);
+      
+    } else {
+      // Handle text files with paragraph-based chunking
+      processedContent = content;
+      const textChunks = splitIntoParagraphChunks(content, 2000);
+      chunks = textChunks
+        .filter(chunk => chunk.length > 30 && isCompleteSentence(chunk))
+        .map((chunk, index) => ({
+          content: chunk,
+          structure_path: `Chunk ${index + 1}`,
+          chunk_index: index,
+          page_title: title,
+          block_type: 'text_chunk'
+        }));
+    }
+    
+    // 2. Insert source into database
+    console.log(`Database: Inserting source "${title}" into database...`);
+    const { data: source, error: sourceError } = await supabase
+      .from('sources')
+      .insert({
+        title,
+        author,
+        source_type,
+        user_id: null // for testing
+      })
+      .select()
+      .single();
+
+    if (sourceError) throw sourceError;
+    console.log(`Database: Source created with ID ${source.id}`);
+    
+    let chunksCreated = 0;
+    console.log(`Processing: Starting to process ${chunks.length} chunks for embeddings...`);
+    
+    // 3. Process each chunk for embeddings
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      
+      // Split content if it's too long for OpenAI
+      const contentPieces = splitLongContent(chunk.content);
+      
+      for (let pieceIndex = 0; pieceIndex < contentPieces.length; pieceIndex++) {
+        const content = contentPieces[pieceIndex];
+        
+        // Generate embedding for chunk
+        const embeddingResponse = await openai.embeddings.create({
+          model: "text-embedding-3-small",
+          input: content,
+        });
+        
+        const embedding = embeddingResponse.data[0].embedding;
+        
+        // Create unique structure path for split content
+        const structurePath = contentPieces.length > 1 
+          ? `${chunk.structure_path} (Part ${pieceIndex + 1})`
+          : chunk.structure_path;
+        
+        // Classify the chunk using AI
+        console.log(`Classification: Analyzing chunk ${chunksCreated + 1}/${chunks.length}...`);
+        const classification = await classifyTextChunk(content);
+        console.log(`Classification: ${classification.primary_category} (${classification.primary_confidence})${classification.secondary_category ? ` + ${classification.secondary_category} (${classification.secondary_confidence})` : ''}`);
+
+        // Store chunk in database with classification
+        const { data: chunkData, error: chunkError } = await supabase
+          .from('source_chunks')
+          .insert({
+            source_id: source.id,
+            content: content,
+            chunk_index: chunk.chunk_index,
+            structure_path: structurePath,
+            primary_category: classification.primary_category,
+            secondary_category: classification.secondary_category,
+            primary_confidence: classification.primary_confidence,
+            secondary_confidence: classification.secondary_confidence
+          })
+          .select()
+          .single();
+
+        if (chunkError) throw chunkError;
+        
+        // Store embedding in Qdrant with retry logic
+        await uploadToQdrantWithRetry(chunkData, embedding, {
+          source_id: source.id,
+          source_title: title,
+          content: content,
+          chunk_index: chunk.chunk_index,
+          structure_path: structurePath,
+          page_title: chunk.page_title,
+          block_type: chunk.block_type,
+          block_uid: chunk.block_uid || null,
+          primary_category: classification.primary_category,
+          secondary_category: classification.secondary_category,
+          primary_confidence: classification.primary_confidence,
+          secondary_confidence: classification.secondary_confidence
+        });
+        
+        chunksCreated++;
+        
+        // Log progress for large uploads
+        if (chunksCreated % 50 === 0 || chunksCreated === chunks.length) {
+          const progress = Math.round((chunksCreated / chunks.length) * 100);
+          console.log(`Processing: ${chunksCreated}/${chunks.length} chunks processed (${progress}%)`);
+        }
+      }
+    }
+
+    console.log(`Upload: Successfully processed ${chunksCreated} chunks for "${title}"`);
+    
+    res.json({
+      message: 'Source uploaded and processed successfully',
+      source_id: source.id,
+      chunks_created: chunksCreated,
+      source_type: source_type
+    });
+
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ 
+      error: 'Failed to upload source',
+      details: error.message 
+    });
+  }
+});
+
+// Get all sources
+app.get('/sources', async (req, res) => {
+  try {
+    const { data: sources, error } = await supabase
+      .from('sources')
+      .select(`
+        *,
+        source_chunks (count)
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Add chunk count to each source
+    const sourcesWithCounts = sources.map(source => ({
+      ...source,
+      chunk_count: source.source_chunks?.[0]?.count || 0
+    }));
+
+    res.json(sourcesWithCounts);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete source endpoint - FIXED VERSION
+app.delete('/sources/:id', async (req, res) => {
+  try {
+    const sourceId = req.params.id;
+    
+    if (!sourceId) {
+      return res.status(400).json({ error: 'Invalid source ID' });
+    }
+
+    console.log(`Starting deletion process for source ID: ${sourceId}`);
+
+    // 1. First, get all chunks for this source to delete from Qdrant
+    const { data: chunks, error: chunksError } = await supabase
+      .from('source_chunks')
+      .select('id')
+      .eq('source_id', sourceId);
+
+    if (chunksError) {
+      console.error('Error fetching chunks:', chunksError);
+      throw chunksError;
+    }
+
+    console.log(`Found ${chunks?.length || 0} chunks to delete`);
+
+    // 2. Delete embeddings from Qdrant using filter (more reliable than individual IDs)
+    if (chunks && chunks.length > 0) {
+      try {
+        // Use filter to delete all points with this source_id
+        const deleteResult = await qdrant.delete('documents', {
+          wait: true,
+          filter: {
+            must: [
+              {
+                key: "source_id",
+                match: {
+                  value: sourceId
+                }
+              }
+            ]
+          }
+        });
+        
+        console.log(`Qdrant delete result:`, deleteResult);
+        console.log(`Successfully deleted embeddings for source ${sourceId} from Qdrant`);
+      } catch (qdrantError) {
+        console.error('Error deleting from Qdrant:', qdrantError);
+        // Log but continue with database deletion - don't fail the entire operation
+        console.log('Continuing with database cleanup despite Qdrant error...');
+      }
+    }
+
+    // 3. Delete chunks from database
+    const { error: deleteChunksError, count: deletedChunksCount } = await supabase
+      .from('source_chunks')
+      .delete()
+      .eq('source_id', sourceId);
+
+    if (deleteChunksError) {
+      console.error('Error deleting chunks:', deleteChunksError);
+      throw deleteChunksError;
+    }
+
+    console.log(`Deleted ${deletedChunksCount || chunks?.length || 0} chunks from database`);
+
+    // 4. Delete source from database
+    const { error: deleteSourceError, count: deletedSourceCount } = await supabase
+      .from('sources')
+      .delete()
+      .eq('id', sourceId);
+
+    if (deleteSourceError) {
+      console.error('Error deleting source:', deleteSourceError);
+      throw deleteSourceError;
+    }
+
+    if (deletedSourceCount === 0) {
+      return res.status(404).json({ error: 'Source not found' });
+    }
+
+    console.log(`Successfully deleted source ${sourceId}`);
+
+    res.json({
+      message: 'Source deleted successfully',
+      source_id: sourceId,
+      deleted_chunks: chunks?.length || 0,
+      deleted_from_qdrant: true
+    });
+
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete source',
+      details: error.message 
+    });
+  }
+});
+
+// Get all notes from a specific source
+app.get('/sources/:id/notes', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get all chunks for this source
+    const { data: chunks, error } = await supabase
+      .from('source_chunks')
+      .select('*')
+      .eq('source_id', id)
+      .order('chunk_index', { ascending: true });
+    
+    if (error) throw error;
+    
+    // Get source info
+    const { data: source, error: sourceError } = await supabase
+      .from('sources')
+      .select('id, title, author, source_type')
+      .eq('id', id)
+      .single();
+    
+    if (sourceError) throw sourceError;
+    
+    // Format results to match search endpoint format
+    const results = chunks.map(chunk => ({
+      content: chunk.content,
+      source_title: source.title,
+      chunk_index: chunk.chunk_index,
+      source_id: chunk.source_id,
+      structure_path: chunk.structure_path,
+      score: 1.0 // All notes from source get 100% match
+    }));
+    
+    res.json(results);
+    
+  } catch (error) {
+    console.error('Get source notes error:', error);
+    res.status(500).json({ 
+      error: 'Failed to retrieve source notes',
+      details: error.message 
+    });
+  }
+});
+
+// Update source details
+app.put('/sources/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, author } = req.body;
+    
+    if (!title || title.trim() === '') {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+    
+    // Update the source in the database
+    const { data, error } = await supabase
+      .from('sources')
+      .update({
+        title: title.trim(),
+        author: author ? author.trim() : 'Unknown Author',
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select();
+    
+    if (error) throw error;
+    
+    if (!data || data.length === 0) {
+      return res.status(404).json({ error: 'Source not found' });
+    }
+    
+    res.json({ 
+      message: 'Source updated successfully',
+      source: data[0]
+    });
+    
+  } catch (error) {
+    console.error('Update source error:', error);
+    res.status(500).json({ 
+      error: 'Failed to update source',
+      details: error.message 
+    });
+  }
+});
+
+// Search endpoint
+app.post('/search', async (req, res) => {
+  try {
+    const { query, limit = 5 } = req.body;
+    
+    // 1. Generate embedding for search query
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query,
+    });
+    
+    const queryEmbedding = embeddingResponse.data[0].embedding;
+    
+    // 2. Search similar vectors in Qdrant
+    const searchResult = await qdrant.search('documents', {
+      vector: queryEmbedding,
+      limit: limit,
+      with_payload: true
+    });
+    
+    // 3. Format results
+    const results = searchResult.map(point => ({
+      score: point.score,
+      content: point.payload.content,
+      source_title: point.payload.source_title,
+      chunk_index: point.payload.chunk_index,
+      source_id: point.payload.source_id,
+      structure_path: point.payload.structure_path,
+      page_title: point.payload.page_title,
+      block_type: point.payload.block_type,
+      primary_category: point.payload.primary_category,
+      secondary_category: point.payload.secondary_category,
+      primary_confidence: point.payload.primary_confidence,
+      secondary_confidence: point.payload.secondary_confidence
+    }));
+
+    res.json(results);
+
+  } catch (error) {
+    console.error('Search error:', error);
+    res.status(500).json({ 
+      error: 'Search failed',
+      details: error.message 
+    });
+  }
+});
+
+// Search with knowledge category filtering
+app.post('/search-filtered', async (req, res) => {
+  try {
+    const { query, limit = 5, primary_category, secondary_category, min_confidence = 0.3 } = req.body;
+    
+    // 1. Generate embedding for search query
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query,
+    });
+    
+    const queryEmbedding = embeddingResponse.data[0].embedding;
+    
+    // 2. Search similar vectors in Qdrant (without filter for now)
+    // Note: Qdrant filtering requires indexes that may not be set up
+    // We'll filter results after retrieval instead
+    const searchResult = await qdrant.search('documents', {
+      vector: queryEmbedding,
+      limit: limit * 10, // Get many more results to filter from for better category matching
+      with_payload: true
+    });
+    
+    // 3. Format results
+    let results = searchResult.map(point => ({
+      score: point.score,
+      content: point.payload.content,
+      source_title: point.payload.source_title,
+      chunk_index: point.payload.chunk_index,
+      source_id: point.payload.source_id,
+      structure_path: point.payload.structure_path,
+      page_title: point.payload.page_title,
+      block_type: point.payload.block_type,
+      primary_category: point.payload.primary_category,
+      secondary_category: point.payload.secondary_category,
+      primary_confidence: point.payload.primary_confidence,
+      secondary_confidence: point.payload.secondary_confidence
+    }));
+
+    // 4. Apply category and confidence filters
+    if (primary_category || secondary_category || min_confidence) {
+      results = results.filter(result => {
+        // Check primary category filter
+        if (primary_category && result.primary_category !== primary_category) {
+          return false;
+        }
+        
+        // Check secondary category filter
+        if (secondary_category && result.secondary_category !== secondary_category) {
+          return false;
+        }
+        
+        // Check minimum confidence filter
+        if (min_confidence && result.primary_confidence < min_confidence) {
+          return false;
+        }
+        
+        return true;
+      });
+    }
+
+    // 5. Limit results to requested amount
+    results = results.slice(0, limit);
+
+    res.json(results);
+
+  } catch (error) {
+    console.error('Filtered search error:', error);
+    res.status(500).json({ 
+      error: 'Filtered search failed',
+      details: error.message 
+    });
+  }
+});
+
+// Re-classify all chunks for a source
+app.post('/sources/:id/reclassify', async (req, res) => {
+  try {
+    const sourceId = req.params.id;
+    
+    // Get all chunks for this source
+    const { data: chunks, error: chunksError } = await supabase
+      .from('source_chunks')
+      .select('*')
+      .eq('source_id', sourceId);
+    
+    if (chunksError) throw chunksError;
+    
+    if (!chunks || chunks.length === 0) {
+      return res.json({ message: 'No chunks found for this source' });
+    }
+    
+    console.log(`Re-classifying ${chunks.length} chunks for source ${sourceId}...`);
+    
+    let reclassified = 0;
+    let errors = 0;
+    
+    for (const chunk of chunks) {
+      try {
+        console.log(`Re-classifying chunk ${chunk.chunk_index}...`);
+        const classification = await classifyTextChunk(chunk.content);
+        
+        // Update the chunk with new classification
+        const { error: updateError } = await supabase
+          .from('source_chunks')
+          .update({
+            primary_category: classification.primary_category,
+            secondary_category: classification.secondary_category,
+            primary_confidence: classification.primary_confidence,
+            secondary_confidence: classification.secondary_confidence
+          })
+          .eq('id', chunk.id);
+        
+        if (updateError) throw updateError;
+        
+        // Note: Qdrant payload will be updated on next search/rebuild
+        // For now, we're only updating the database classification
+        
+        reclassified++;
+        console.log(`✓ Re-classified: ${classification.primary_category} (${classification.primary_confidence})${classification.secondary_category ? ` + ${classification.secondary_category} (${classification.secondary_confidence})` : ''}`);
+        
+      } catch (error) {
+        console.error(`Error re-classifying chunk ${chunk.chunk_index}:`, error);
+        errors++;
+      }
+    }
+    
+    res.json({
+      message: `Re-classification complete`,
+      total_chunks: chunks.length,
+      reclassified: reclassified,
+      errors: errors
+    });
+    
+  } catch (error) {
+    console.error('Re-classification error:', error);
+    res.status(500).json({ 
+      error: 'Re-classification failed',
+      details: error.message 
+    });
+  }
+});
+
+// Get knowledge category statistics
+app.get('/knowledge-stats', async (req, res) => {
+  try {
+    const { data: stats, error } = await supabase
+      .from('source_chunks')
+      .select('primary_category, secondary_category, primary_confidence, secondary_confidence');
+    
+    if (error) throw error;
+    
+    // Calculate statistics
+    const categoryCounts = {};
+    const confidenceStats = {};
+    
+    stats.forEach(chunk => {
+      // Primary category counts
+      if (chunk.primary_category) {
+        categoryCounts[chunk.primary_category] = (categoryCounts[chunk.primary_category] || 0) + 1;
+      }
+      
+      // Secondary category counts
+      if (chunk.secondary_category) {
+        categoryCounts[`${chunk.secondary_category} (secondary)`] = (categoryCounts[`${chunk.secondary_category} (secondary)`] || 0) + 1;
+      }
+      
+      // Confidence statistics
+      if (chunk.primary_confidence !== null) {
+        if (!confidenceStats.primary) {
+          confidenceStats.primary = { sum: 0, count: 0, min: 1, max: 0 };
+        }
+        confidenceStats.primary.sum += chunk.primary_confidence;
+        confidenceStats.primary.count++;
+        confidenceStats.primary.min = Math.min(confidenceStats.primary.min, chunk.primary_confidence);
+        confidenceStats.primary.max = Math.max(confidenceStats.primary.max, chunk.primary_confidence);
+      }
+      
+      if (chunk.secondary_confidence !== null) {
+        if (!confidenceStats.secondary) {
+          confidenceStats.secondary = { sum: 0, count: 0, min: 1, max: 0 };
+        }
+        confidenceStats.secondary.sum += chunk.secondary_confidence;
+        confidenceStats.secondary.count++;
+        confidenceStats.secondary.min = Math.min(confidenceStats.secondary.min, chunk.secondary_confidence);
+        confidenceStats.secondary.max = Math.max(confidenceStats.secondary.max, chunk.secondary_confidence);
+      }
+    });
+    
+    // Calculate averages
+    if (confidenceStats.primary) {
+      confidenceStats.primary.avg = confidenceStats.primary.sum / confidenceStats.primary.count;
+    }
+    if (confidenceStats.secondary) {
+      confidenceStats.secondary.avg = confidenceStats.secondary.sum / confidenceStats.secondary.count;
+    }
+    
+    res.json({
+      total_chunks: stats.length,
+      category_counts: categoryCounts,
+      confidence_stats: confidenceStats
+    });
+    
+  } catch (error) {
+    console.error('Knowledge stats error:', error);
+    res.status(500).json({ 
+      error: 'Failed to get knowledge statistics',
+      details: error.message 
+    });
+  }
+});
+
+// Clean up orphaned chunks (chunks without corresponding sources)
+app.post('/cleanup-orphaned-chunks', async (req, res) => {
+  try {
+    console.log('Starting orphaned chunks cleanup...');
+
+    // 1. Get all source IDs that exist in the database
+    const { data: sources, error: sourcesError } = await supabase
+      .from('sources')
+      .select('id');
+
+    if (sourcesError) throw sourcesError;
+
+    const validSourceIds = new Set(sources.map(s => s.id));
+    console.log(`Found ${validSourceIds.size} valid sources`);
+
+    // 2. Get all chunks and identify orphaned ones
+    const { data: allChunks, error: chunksError } = await supabase
+      .from('source_chunks')
+      .select('id, source_id');
+
+    if (chunksError) throw chunksError;
+
+    const orphanedChunks = allChunks.filter(chunk => !validSourceIds.has(chunk.source_id));
+    console.log(`Found ${orphanedChunks.length} orphaned chunks`);
+
+    if (orphanedChunks.length === 0) {
+      return res.json({ message: 'No orphaned chunks found' });
+    }
+
+    // 3. Delete orphaned chunks from database
+    const orphanedIds = orphanedChunks.map(chunk => chunk.id);
+    const { error: deleteError, count: deletedCount } = await supabase
+      .from('source_chunks')
+      .delete()
+      .in('id', orphanedIds);
+
+    if (deleteError) throw deleteError;
+
+    console.log(`Deleted ${deletedCount} orphaned chunks from database`);
+
+    // 4. Delete orphaned chunks from Qdrant
+    const orphanedSourceIds = [...new Set(orphanedChunks.map(chunk => chunk.source_id))];
+    let qdrantDeletedCount = 0;
+
+    for (const sourceId of orphanedSourceIds) {
+      try {
+        const deleteResult = await qdrant.delete('documents', {
+          wait: true,
+          filter: {
+            must: [
+              {
+                key: "source_id",
+                match: {
+                  value: sourceId
+                }
+              }
+            ]
+          }
+        });
+        console.log(`Deleted chunks for source ${sourceId} from Qdrant`);
+        qdrantDeletedCount++;
+      } catch (qdrantError) {
+        console.error(`Error deleting source ${sourceId} from Qdrant:`, qdrantError);
+      }
+    }
+
+    res.json({
+      message: 'Orphaned chunks cleanup completed',
+      orphaned_chunks_found: orphanedChunks.length,
+      deleted_from_database: deletedCount,
+      deleted_from_qdrant: qdrantDeletedCount,
+      orphaned_source_ids: orphanedSourceIds
+    });
+
+  } catch (error) {
+    console.error('Cleanup error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Add retry logic for Qdrant uploads
+async function uploadToQdrantWithRetry(chunkData, embedding, payload, maxRetries = 3) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      await qdrant.upsert('documents', {
+        wait: true,
+        points: [{
+          id: chunkData.id,
+          vector: embedding,
+          payload: payload
+        }]
+      });
+      return; // Success - exit the retry loop
+    } catch (error) {
+      console.log(`Qdrant upload attempt ${attempt} failed:`, error.message);
+      
+      if (attempt === maxRetries) {
+        throw error; // Final attempt failed - throw the error
+      }
+      
+      // Wait before retrying (exponential backoff)
+      const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s delays
+      console.log(`Retrying in ${delay/1000} seconds...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+
+// Initialize NLTK sentence tokenizer
+let sentenceTokenizer = null;
+async function initializeNLTK() {
+  try {
+    // Download required NLTK data
+    await nltk.download('punkt', { quiet: true });
+    sentenceTokenizer = new nltk.PunktSentenceTokenizer();
+  } catch (error) {
+    console.warn('NLTK initialization failed, falling back to regex splitting:', error.message);
+    sentenceTokenizer = null;
+  }
+}
+
+// Sophisticated sentence splitting using NLTK with regex fallback
+function splitIntoSentences(text) {
+  if (sentenceTokenizer) {
+    try {
+      return sentenceTokenizer.tokenize(text);
+    } catch (error) {
+      console.warn('NLTK sentence splitting failed, using regex fallback:', error.message);
+    }
+  }
+  
+  // Fallback to regex-based sentence splitting
+  return text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+}
+
+// Detect paragraph breaks with multiple strategies
+function detectParagraphBreaks(text) {
+  // Primary: Double newlines (\n\n)
+  if (text.includes('\n\n')) {
+    return text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+  }
+  
+  // Fallback: HTML <p> tags
+  if (text.includes('<p>')) {
+    const pMatches = text.match(/<p[^>]*>(.*?)<\/p>/gs);
+    if (pMatches) {
+      return pMatches.map(p => p.replace(/<[^>]*>/g, '').trim()).filter(p => p.length > 0);
+    }
+  }
+  
+  // For PDF content: Use a much more conservative approach
+  // Create larger chunks by grouping many more sentences together
+  const sentences = splitIntoSentences(text);
+  const paragraphs = [];
+  let currentParagraph = '';
+  
+  for (let i = 0; i < sentences.length; i++) {
+    const sentence = sentences[i].trim();
+    if (sentence.length === 0) continue;
+    
+    // Add sentence to current paragraph
+    currentParagraph += (currentParagraph ? ' ' : '') + sentence;
+    
+    // Much more conservative: break every 20-30 sentences or 3000+ characters
+    // This should create much larger, more coherent chunks
+    const sentenceCount = currentParagraph.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+    const shouldBreak = sentenceCount >= 20 || currentParagraph.length > 3000;
+    
+    if (shouldBreak || i === sentences.length - 1) {
+      if (currentParagraph.trim().length > 0) {
+        paragraphs.push(currentParagraph.trim());
+      }
+      currentParagraph = '';
+    }
+  }
+  
+  // If we didn't find any paragraphs, treat the whole text as one paragraph
+  return paragraphs.length > 0 ? paragraphs : [text];
+}
+
+// New paragraph-based chunking function
+function splitIntoParagraphChunks(text, maxChunkSize = 2000) {
+  const paragraphs = detectParagraphBreaks(text);
+  const chunks = [];
+  
+  for (const paragraph of paragraphs) {
+    const paragraphLength = paragraph.length;
+    
+    if (paragraphLength <= maxChunkSize) {
+      // Paragraph fits in one chunk
+      chunks.push(paragraph);
+    } else if (paragraphLength <= maxChunkSize * 2) {
+      // Split paragraph in half at sentence boundary
+      const sentences = splitIntoSentences(paragraph);
+      const midPoint = Math.ceil(sentences.length / 2);
+      
+      const firstHalf = sentences.slice(0, midPoint).join(' ').trim();
+      const secondHalf = sentences.slice(midPoint).join(' ').trim();
+      
+      if (firstHalf.length > 0) chunks.push(firstHalf);
+      if (secondHalf.length > 0) chunks.push(secondHalf);
+    } else if (paragraphLength <= maxChunkSize * 3) {
+      // Split paragraph into thirds at sentence boundaries
+      const sentences = splitIntoSentences(paragraph);
+      const thirdPoint = Math.ceil(sentences.length / 3);
+      const twoThirdPoint = Math.ceil(sentences.length * 2 / 3);
+      
+      const firstThird = sentences.slice(0, thirdPoint).join(' ').trim();
+      const secondThird = sentences.slice(thirdPoint, twoThirdPoint).join(' ').trim();
+      const thirdThird = sentences.slice(twoThirdPoint).join(' ').trim();
+      
+      if (firstThird.length > 0) chunks.push(firstThird);
+      if (secondThird.length > 0) chunks.push(secondThird);
+      if (thirdThird.length > 0) chunks.push(thirdThird);
+    } else {
+      // Very long paragraph - split into multiple chunks of maxChunkSize
+      const sentences = splitIntoSentences(paragraph);
+      let currentChunk = '';
+      
+      for (const sentence of sentences) {
+        const testChunk = currentChunk + (currentChunk ? ' ' : '') + sentence;
+        
+        if (testChunk.length > maxChunkSize && currentChunk.length > 0) {
+          chunks.push(currentChunk.trim());
+          currentChunk = sentence;
+        } else {
+          currentChunk = testChunk;
+        }
+      }
+      
+      if (currentChunk.trim().length > 0) {
+        chunks.push(currentChunk.trim());
+      }
+    }
+  }
+  
+  return chunks;
+}
+
+// Legacy function for backward compatibility
+function splitIntoChunks(text, maxChunkSize) {
+  return splitIntoParagraphChunks(text, maxChunkSize);
+}
+
+// Create Qdrant collection if it doesn't exist
+async function initializeQdrant() {
+  try {
+    const collections = await qdrant.getCollections();
+    const hasDocumentsCollection = collections.collections.some(c => c.name === 'documents');
+    
+    if (!hasDocumentsCollection) {
+      await qdrant.createCollection('documents', {
+        vectors: { size: 1536, distance: 'Cosine' }
+      });
+      console.log('Created Qdrant collection: documents');
+    }
+  } catch (error) {
+    console.error('Failed to initialize Qdrant:', error);
+  }
+}
+
+// ===== PROJECT ENDPOINTS =====
+
+// Get all projects
+app.get('/projects', async (req, res) => {
+  try {
+    const { data: projects, error } = await supabase
+      .from('projects')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    res.json(projects);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Create a new project
+app.post('/projects', async (req, res) => {
+  try {
+    const { title, description, content } = req.body;
+    
+    if (!title) {
+      return res.status(400).json({ error: 'Title is required' });
+    }
+
+    const { data: project, error } = await supabase
+      .from('projects')
+      .insert({
+        title,
+        description: description || '',
+        content: content || '',
+        user_id: null // for testing
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update a project
+app.put('/projects/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, content } = req.body;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    const updateData = {};
+    if (title !== undefined) updateData.title = title;
+    if (description !== undefined) updateData.description = description;
+    if (content !== undefined) updateData.content = content;
+    updateData.updated_at = new Date().toISOString();
+
+    const { data: project, error } = await supabase
+      .from('projects')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete a project
+app.delete('/projects/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    const { error, count } = await supabase
+      .from('projects')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+
+    if (count === 0) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    res.json({ message: 'Project deleted successfully', project_id: id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get a specific project
+app.get('/projects/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    if (!id) {
+      return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    const { data: project, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (error) throw error;
+
+    if (!project) {
+      return res.status(404).json({ error: 'Project not found' });
+    }
+
+    res.json(project);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Initialize services on startup
+async function initializeServices() {
+  try {
+    await initializeQdrant();
+    await initializeNLTK();
+    console.log('All services initialized successfully');
+  } catch (error) {
+    console.error('Error initializing services:', error);
+  }
+}
+
+// Initialize services and start server
+initializeServices();
 
 // Start server
 app.listen(PORT, () => {
