@@ -11,3 +11,4 @@ Full-stack AI research assistant with semantic search capabilities.
 
 ## Setup
 Copy .env.example to .env and add your API keys." > README.md
+d

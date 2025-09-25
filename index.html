@@ -356,6 +356,35 @@
             border-color: #ef4444;
         }
 
+        /* Search mode toggle styles */
+        .search-mode-toggle {
+            margin: 12px 0;
+            padding: 8px 0;
+        }
+
+        .search-mode-options {
+            display: flex;
+            gap: 16px;
+        }
+
+        .search-mode-option {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+            color: #374151;
+            cursor: pointer;
+        }
+
+        .search-mode-option input[type="radio"] {
+            margin: 0;
+        }
+
+        .search-mode-option input[type="radio"]:checked + span {
+            color: #3b82f6;
+            font-weight: 500;
+        }
+
         /* Auto-search toggle styles */
         .auto-search-toggle {
             display: flex;
@@ -506,6 +535,14 @@
             font-size: 14px;
             line-height: 1.5;
             color: #374151;
+        }
+
+        .search-highlight {
+            background-color: #fef3c7;
+            color: #92400e;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: 600;
         }
 
         .icon {
@@ -968,8 +1005,22 @@
             <div class="panel-content">
                 <textarea class="search-input notes-search" placeholder="Search your sources with a detailed query or question" id="notes-search" oninput="performSearch()" onkeydown="handleSearchKeydown(event)"></textarea>
                 
-                <!-- Auto-search Toggle -->
-                <div class="auto-search-toggle">
+                <!-- Search Mode Toggle -->
+                <div class="search-mode-toggle">
+                    <div class="search-mode-options">
+                        <label class="search-mode-option">
+                            <input type="radio" name="search-mode" value="smart" checked onchange="toggleSearchMode()">
+                            <span>Smart Search</span>
+                        </label>
+                        <label class="search-mode-option">
+                            <input type="radio" name="search-mode" value="text" onchange="toggleSearchMode()">
+                            <span>Text Search</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Auto-search Toggle (only shown for Smart Search) -->
+                <div class="auto-search-toggle" id="auto-search-container">
                     <label>
                         <input type="checkbox" id="auto-search-toggle" checked onchange="toggleAutoSearch()">
                         <span>Auto-search</span>
@@ -990,7 +1041,7 @@
                         <option value="">All Notes</option>
                     </select>
                 </div>
-                <div class="notes-filters" style="margin-top: 8px;">
+                <div class="notes-filters" style="margin-top: 8px; display: none;">
                     <select class="filter-select" id="category-filter" onchange="applyFilters()">
                         <option value="">All Categories</option>
                         <option value="Semantic">Semantic (Meaning)</option>
@@ -1120,6 +1171,7 @@
         let availableSources = new Set();
         let availableProjects = new Set();
         let autoSearchEnabled = true;
+        let searchMode = 'smart'; // 'smart' or 'text'
         let autoSearchTimeout = null;
         let currentSearchQuery = '';
         let searchLimit = 10;
@@ -1718,6 +1770,38 @@
             }
         }
         
+        // Search mode toggle functionality
+        function toggleSearchMode() {
+            const smartSearchRadio = document.querySelector('input[name="search-mode"][value="smart"]');
+            const textSearchRadio = document.querySelector('input[name="search-mode"][value="text"]');
+            const autoSearchContainer = document.getElementById('auto-search-container');
+            const searchInput = document.getElementById('notes-search');
+            
+            if (smartSearchRadio.checked) {
+                searchMode = 'smart';
+                autoSearchContainer.style.display = 'flex';
+                searchInput.placeholder = 'Search your sources with a detailed query or question';
+            } else if (textSearchRadio.checked) {
+                searchMode = 'text';
+                autoSearchContainer.style.display = 'none';
+                searchInput.placeholder = 'Enter search terms (use quotes for exact phrases, OR for alternatives, - to exclude)';
+                // Disable auto-search for text mode
+                autoSearchEnabled = false;
+                document.getElementById('auto-search-toggle').checked = false;
+            }
+            
+            console.log('Search mode:', searchMode);
+            
+            // Clear any pending search
+            if (autoSearchTimeout) {
+                clearTimeout(autoSearchTimeout);
+                autoSearchTimeout = null;
+            }
+            
+            // Clear current results when switching modes
+            displayEmptyState();
+        }
+
         // Auto-search toggle functionality
         function toggleAutoSearch() {
             autoSearchEnabled = document.getElementById('auto-search-toggle').checked;
@@ -1761,11 +1845,11 @@
                 return '';
             }
             
-            // Extract 500 characters of context: 250 before + 250 after cursor
-            // If no text after cursor, use 500 before cursor
-            const contextSize = 500;
-            const beforeSize = 250;
-            const afterSize = 250;
+            // Extract 1000 characters of context: 500 before + 500 after cursor
+            // If no text after cursor, use 1000 before cursor
+            const contextSize = 1000;
+            const beforeSize = 500;
+            const afterSize = 500;
             
             const beforeCursor = text.substring(0, cursorPosition);
             const afterCursor = text.substring(cursorPosition);
@@ -1774,16 +1858,16 @@
             
             // Check if there's enough text after cursor
             if (afterCursor.length >= afterSize) {
-                // Use 250 before + 250 after
+                // Use 500 before + 500 after
                 const start = Math.max(0, cursorPosition - beforeSize);
                 const end = Math.min(text.length, cursorPosition + afterSize);
                 textChunk = text.substring(start, end);
-                console.log('ExtractMeaningfulText - Using 250/250 split');
+                console.log('ExtractMeaningfulText - Using 500/500 split');
             } else {
-                // Use 500 before cursor if not enough text after
+                // Use 1000 before cursor if not enough text after
                 const start = Math.max(0, cursorPosition - contextSize);
                 textChunk = text.substring(start, cursorPosition + afterCursor.length);
-                console.log('ExtractMeaningfulText - Using 500 before (fallback)');
+                console.log('ExtractMeaningfulText - Using 1000 before (fallback)');
             }
             
             // Clean up the text chunk
@@ -1890,10 +1974,60 @@
         
         // Handle keydown events in search input
         function handleSearchKeydown(event) {
-            // If auto-search is disabled and user presses Enter, perform manual search
-            if (!autoSearchEnabled && event.key === 'Enter' && !event.shiftKey) {
+            if (event.key === 'Enter' && !event.shiftKey) {
                 event.preventDefault();
-                performManualSearch();
+                if (searchMode === 'text') {
+                    performTextSearch();
+                } else if (!autoSearchEnabled) {
+                    performManualSearch();
+                }
+            }
+        }
+        
+        // Text search function (literal text search with operators)
+        async function performTextSearch() {
+            const searchInput = document.getElementById('notes-search');
+            let query = searchInput.value.trim();
+            
+            if (query.length === 0) {
+                displayEmptyState();
+                return;
+            }
+            
+            // Reset for new search
+            searchOffset = 0;
+            currentSearchQuery = query;
+            
+            try {
+                const response = await fetch(`${API_BASE}/text-search`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: query,
+                        limit: 10
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Text search failed: ${response.status}`);
+                }
+                
+                const results = await response.json();
+                
+                // Store all results and show first 8
+                allNotes = results;
+                displayedNotes = results.slice(0, 8);
+                searchOffset = 8;
+                hasMoreResults = results.length > 8;
+                
+                updateAvailableSources(results);
+                applyFilters();
+                
+            } catch (error) {
+                console.error('Text search error:', error);
+                displayErrorState();
             }
         }
         
@@ -1960,6 +2094,11 @@
         
         // Search functionality with debouncing for textarea
         async function performSearch() {
+            // For text search mode, don't auto-search
+            if (searchMode === 'text') {
+                return;
+            }
+            
             // Check if auto-search is enabled
             if (!autoSearchEnabled) {
                 return;
@@ -2266,6 +2405,62 @@
             }
         }
         
+        // Highlight search terms in text
+        function highlightSearchTerms(text, searchQuery) {
+            if (!searchQuery || searchQuery.trim().length === 0) {
+                return text;
+            }
+            
+            // Parse the search query to extract terms for highlighting
+            const terms = [];
+            
+            // Extract exact phrases (quoted text)
+            const phraseRegex = /"([^"]+)"/g;
+            let match;
+            while ((match = phraseRegex.exec(searchQuery)) !== null) {
+                terms.push({
+                    text: match[1],
+                    isExact: true
+                });
+            }
+            
+            // Extract individual words (excluding OR, -, and quoted phrases)
+            const remainingQuery = searchQuery.replace(/"([^"]+)"/g, '').trim();
+            const words = remainingQuery.split(/\s+/)
+                .filter(word => word.length > 0 && word.toUpperCase() !== 'OR' && !word.startsWith('-'))
+                .map(word => ({
+                    text: word,
+                    isExact: false
+                }));
+            
+            terms.push(...words);
+            
+            if (terms.length === 0) {
+                return text;
+            }
+            
+            let highlightedText = text;
+            
+            // Highlight exact phrases first
+            terms.filter(term => term.isExact).forEach(term => {
+                const regex = new RegExp(`(${escapeRegExp(term.text)})`, 'gi');
+                highlightedText = highlightedText.replace(regex, '<mark class="search-highlight">$1</mark>');
+            });
+            
+            // Highlight individual words
+            terms.filter(term => !term.isExact).forEach(term => {
+                const regex = new RegExp(`\\b(${escapeRegExp(term.text)})\\b`, 'gi');
+                highlightedText = highlightedText.replace(regex, '<mark class="search-highlight">$1</mark>');
+            });
+            
+            return highlightedText;
+        }
+        
+        // Escape special regex characters
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+        
         function createNoteCard(note, showContextButton = true) {
             const card = document.createElement('div');
             card.className = 'note-card';
@@ -2283,7 +2478,7 @@
             // Generate context button HTML conditionally
             const contextButton = showContextButton ? `
                         <button class="note-action-btn" 
-                                onclick="showNoteInContext('${note.source_id}', '${note.source_title}', ${note.chunk_index})" 
+                                onclick="showNoteInContext('${note.source_id}', '${note.source_title}', ${note.chunk_index}, '${note.content.replace(/'/g, "\\'")}')" 
                                 title="View note in context">
                             <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
@@ -2296,10 +2491,6 @@
                     <div class="note-meta">
                         <div class="note-score">${percentage}% match</div>
                         <div class="note-source">${note.source_title}${authorText}</div>
-                        ${note.primary_category ? `<div class="note-categories">
-                            <span class="category-badge primary">${note.primary_category} (${Math.round(note.primary_confidence * 100)}%)</span>
-                            ${note.secondary_category ? `<span class="category-badge secondary">${note.secondary_category} (${Math.round(note.secondary_confidence * 100)}%)</span>` : ''}
-                        </div>` : ''}
                     </div>
                     <div class="note-actions">
                         <button class="note-action-btn ${isSaved ? 'saved' : ''}" 
@@ -2324,7 +2515,7 @@
                         </button>
                     </div>
                 </div>
-                <div class="note-content">${note.content}</div>
+                <div class="note-content">${searchMode === 'text' ? highlightSearchTerms(note.content, currentSearchQuery) : note.content}</div>
             `;
             
             return card;
@@ -2698,8 +2889,9 @@
             }
         }
         
-        async function showNoteInContext(sourceId, sourceTitle, chunkIndex) {
+        async function showNoteInContext(sourceId, sourceTitle, chunkIndex, noteContent = null) {
             console.log(`Loading notes in context for: ${sourceTitle}, chunk: ${chunkIndex}`);
+            console.log('showNoteInContext called with:', { sourceId, sourceTitle, chunkIndex, noteContent });
             
             // Show the source viewer
             const sourceViewer = document.getElementById('source-viewer');
@@ -2755,14 +2947,37 @@
                 // Display notes with pagination
                 contentElement.innerHTML = '';
                 
-                // Show first 20 notes initially
-                const notesToShow = sourceNotes.slice(0, 20);
-                const hasMore = sourceNotes.length > 20;
+                // Find the target note index - try by chunk_index first, then by content
+                let targetNoteIndex = sourceNotes.findIndex(note => note.chunk_index === chunkIndex);
+                console.log('Target note search by chunk_index:', { chunkIndex, targetNoteIndex, totalNotes: sourceNotes.length });
                 
-                notesToShow.forEach(note => {
+                // If not found by chunk_index, try to find by content (fallback for data inconsistency)
+                if (targetNoteIndex === -1 && noteContent) {
+                    console.log('Note not found by chunk_index, trying content matching...');
+                    targetNoteIndex = sourceNotes.findIndex(note => 
+                        note.content.trim() === noteContent.trim() || 
+                        note.content.includes(noteContent.substring(0, 50))
+                    );
+                    console.log('Content matching result:', targetNoteIndex);
+                }
+                
+                // Calculate how many notes to show initially to include the target note
+                let initialCount = 20;
+                if (targetNoteIndex >= 0 && targetNoteIndex >= 20) {
+                    // If target note is beyond first 20, show more notes to include it
+                    initialCount = Math.min(targetNoteIndex + 10, sourceNotes.length);
+                }
+                console.log('Initial count calculated:', initialCount);
+                
+                // Show initial notes
+                const notesToShow = sourceNotes.slice(0, initialCount);
+                const hasMore = sourceNotes.length > initialCount;
+                
+                notesToShow.forEach((note, index) => {
                     const noteCard = createNoteCard(note, false); // Hide context button in source notes panel
                     // Add highlighting for the specific note
-                    if (note.chunk_index === chunkIndex) {
+                    if (targetNoteIndex >= 0 && index === targetNoteIndex) {
+                        console.log('Highlighting note at index:', index, 'with chunk_index:', note.chunk_index);
                         noteCard.classList.add('highlighted-note');
                         noteCard.style.background = '#f0f9ff';
                         noteCard.style.border = '2px solid #3b82f6';
@@ -2775,16 +2990,20 @@
                     const loadMoreBtn = document.createElement('button');
                     loadMoreBtn.id = 'source-load-more-btn';
                     loadMoreBtn.className = 'load-more-btn';
-                    loadMoreBtn.textContent = `Load More Notes (${sourceNotes.length - 20} remaining)`;
-                    loadMoreBtn.onclick = () => loadMoreSourceNotes(sourceNotes, 20);
+                    loadMoreBtn.textContent = `Load More Notes (${sourceNotes.length - initialCount} remaining)`;
+                    loadMoreBtn.onclick = () => loadMoreSourceNotes(sourceNotes, initialCount);
                     contentElement.appendChild(loadMoreBtn);
                 }
                 
                 // Scroll to the specific note
                 setTimeout(() => {
                     const targetNote = contentElement.querySelector('.highlighted-note');
+                    console.log('Looking for highlighted note:', targetNote);
                     if (targetNote) {
+                        console.log('Scrolling to highlighted note');
                         targetNote.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    } else {
+                        console.log('No highlighted note found');
                     }
                 }, 100);
                 
@@ -3099,18 +3318,48 @@
             // Show detailed progress UI
             showUploadProgress(title, fileSize, fileSizeMB);
             
-            // Hide upload form after storing file info
-            hideUploadInterface();
-            
             // Set up timeout for large files (30 minutes)
             const uploadTimeout = setTimeout(() => {
                 updateUploadProgress('error', 'Upload timeout - file may be too large or complex');
             }, 30 * 60 * 1000); // 30 minutes
             
             try {
+                // Use the stored selectedFile instead of reading from file input
+                console.log('Using stored selectedFile:', selectedFile);
+                
+                if (!selectedFile) {
+                    throw new Error('No file selected - please select a file first');
+                }
+                
+                const file = selectedFile;
+                console.log('Selected file details:', {
+                    name: file.name,
+                    size: file.size,
+                    type: file.type
+                });
+                
                 let sourceType = 'txt';
+                // fileContent already prepared above for binary files
+                
                 if (fileName.endsWith('.json')) {
-                    sourceType = 'json';
+                    // Check if it's a Roam Research JSON by looking at the file content
+                    fileContent = await file.text();
+                    try {
+                        const jsonData = JSON.parse(fileContent);
+                        // Roam Research exports are arrays of pages with specific structure
+                        if (Array.isArray(jsonData) && jsonData.length > 0 && 
+                            jsonData[0].hasOwnProperty('title') && 
+                            jsonData[0].hasOwnProperty('children')) {
+                            sourceType = 'roam';
+                            console.log('Detected Roam Research JSON format');
+                        } else {
+                            sourceType = 'json';
+                            console.log('Detected generic JSON format');
+                        }
+                    } catch (e) {
+                        sourceType = 'json';
+                        console.log('Invalid JSON, treating as generic');
+                    }
                 } else if (fileName.endsWith('.pdf')) {
                     sourceType = 'pdf';
                 } else if (fileName.endsWith('.epub')) {
@@ -3146,14 +3395,17 @@
                 } else {
                     // For text files, we need to get the file content
                     updateUploadProgress('processing', 'Reading text file...');
-                    const fileInput = document.getElementById('file-input');
-                    const file = fileInput.files[0];
-                    if (!file) {
-                        throw new Error('File not found - please try uploading again');
-                    }
                     
-                    const content = await file.text();
-                    console.log('Text file read, length:', content.length);
+                    let content;
+                    if (fileContent) {
+                        // Reuse content we already read for JSON detection
+                        content = fileContent;
+                        console.log('Reusing previously read content, length:', content.length);
+                    } else {
+                        // Read file content for non-JSON files
+                        content = await file.text();
+                        console.log('Text file read, length:', content.length);
+                    }
                     uploadData.content = content;
                 }
                 
@@ -3188,12 +3440,16 @@
                 setTimeout(() => {
                     // Show success message
                     updateUploadProgress('completed', `✓ Upload completed successfully! Created ${result.chunks_created} notes.`);
+                    // Hide upload form after successful upload
+                    hideUploadInterface();
                 }, 100);
                 
                 clearTimeout(uploadTimeout);
                 
             } catch (error) {
                 console.error('Upload error:', error);
+                console.error('Error message:', error.message);
+                console.error('Error stack:', error.stack);
                 clearTimeout(uploadTimeout);
                 
                 // Show detailed error message
@@ -3209,6 +3465,9 @@
                 }
                 
                 updateUploadProgress('error', errorMessage);
+                
+                // Hide upload form after error
+                hideUploadInterface();
                 
                 // Only try to update source status if tempId exists
                 if (typeof tempId !== 'undefined') {
@@ -3489,6 +3748,7 @@
         window.createNoteCard = createNoteCard;
         window.handleEditorInput = handleEditorInput;
         window.toggleAutoSearch = toggleAutoSearch;
+        window.toggleSearchMode = toggleSearchMode;
         window.showCreateProjectModal = showCreateProjectModal;
         window.hideCreateProjectModal = hideCreateProjectModal;
         window.createNewProject = createNewProject;

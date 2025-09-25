@@ -34,7 +34,7 @@ async function processPDF(buffer) {
 }
 
 // Simple chunking function that ensures chunks end with periods
-function createPDFChunks(content, minChunkSize = 500, maxChunkSize = 1000) {
+function createPDFChunks(content, minChunkSize = 800, maxChunkSize = 1200) {
   const chunks = [];
   let currentChunk = '';
   let chunkIndex = 0;
@@ -459,14 +459,12 @@ function parseRoamJSON(jsonContent) {
       return;
     }
     
-    // Collect all blocks from the page
-    const pageBlocks = [];
-    
-    // Add page title as a block if it exists and has meaningful content
+    // Add page title as a chunk if it exists and has meaningful content
     if (pageTitle && pageTitle !== 'Untitled Page') {
-      pageBlocks.push({
+      chunks.push({
         content: `Page: ${pageTitle}`,
         structure_path: `Page: ${pageTitle}`,
+        chunk_index: chunkIndex++,
         page_title: pageTitle,
         block_type: 'page_title'
       });
@@ -474,17 +472,8 @@ function parseRoamJSON(jsonContent) {
     
     // Process all blocks in the page
     if (page.children && Array.isArray(page.children)) {
-      collectBlocks(page.children, pageBlocks, pageTitle, '', blockMap);
+      chunkIndex = processBlocks(page.children, chunks, pageTitle, '', chunkIndex, blockMap);
     }
-    
-    // Group blocks into 1000-character chunks
-    const pageChunks = groupBlocksIntoChunks(pageBlocks, 1000);
-    
-    // Add chunks to the main chunks array
-    pageChunks.forEach(chunk => {
-      chunk.chunk_index = chunkIndex++;
-      chunks.push(chunk);
-    });
   });
   
   return chunks;
@@ -502,96 +491,6 @@ function buildBlockMap(blocks, blockMap) {
       buildBlockMap(block.children, blockMap);
     }
   });
-}
-
-// Collect all blocks from a page into a flat array
-function collectBlocks(blocks, pageBlocks, pageTitle, parentPath = '', blockMap = new Map()) {
-  blocks.forEach((block, index) => {
-    // Extract the text content from the block
-    let blockText = '';
-    
-    if (block.string) {
-      blockText = block.string;
-    } else if (typeof block === 'string') {
-      blockText = block;
-    }
-    
-    // Clean up Roam syntax with improved formatting
-    if (blockText) {
-      blockText = cleanRoamText(blockText, blockMap);
-    }
-      
-    // Add block if it has meaningful content
-    if (blockText.length > 30 && isCompleteSentence(blockText)) {
-      const structurePath = parentPath 
-        ? `${pageTitle} > ${parentPath} > Block ${index + 1}`
-        : `${pageTitle} > Block ${index + 1}`;
-      
-      pageBlocks.push({
-        content: blockText,
-        structure_path: structurePath,
-        page_title: pageTitle,
-        block_type: 'block',
-        block_uid: block.uid || null
-      });
-    }
-    
-    // Recursively process nested blocks
-    if (block.children && Array.isArray(block.children)) {
-      const newParentPath = parentPath 
-        ? `${parentPath} > Block ${index + 1}`
-        : `Block ${index + 1}`;
-      collectBlocks(block.children, pageBlocks, pageTitle, newParentPath, blockMap);
-    }
-  });
-}
-
-// Group blocks into chunks of approximately maxChunkSize characters
-function groupBlocksIntoChunks(blocks, maxChunkSize) {
-  const chunks = [];
-  let currentChunk = {
-    content: '',
-    structure_path: '',
-    page_title: '',
-    block_type: 'chunk',
-    blocks: []
-  };
-  
-  for (const block of blocks) {
-    const testContent = currentChunk.content + (currentChunk.content ? ' ' : '') + block.content;
-    
-    if (testContent.length <= maxChunkSize && currentChunk.blocks.length < 10) {
-      // Add block to current chunk
-      currentChunk.content = testContent;
-      currentChunk.blocks.push(block);
-      
-      // Set metadata from first block
-      if (currentChunk.blocks.length === 1) {
-        currentChunk.structure_path = block.structure_path;
-        currentChunk.page_title = block.page_title;
-      }
-    } else {
-      // Current chunk is full, start a new one
-      if (currentChunk.content) {
-        chunks.push({ ...currentChunk });
-      }
-      
-      currentChunk = {
-        content: block.content,
-        structure_path: block.structure_path,
-        page_title: block.page_title,
-        block_type: 'chunk',
-        blocks: [block]
-      };
-    }
-  }
-  
-  // Add the last chunk if it has content
-  if (currentChunk.content) {
-    chunks.push(currentChunk);
-  }
-  
-  return chunks;
 }
 
 // Enhanced Roam text cleaning function
@@ -742,66 +641,17 @@ function splitLongContent(content, maxTokens = 8000) {
 
 // ===== PDF PROCESSING FUNCTIONS =====
 
-// ===== TEXT PROCESSING FUNCTIONS =====
-
-function createSimpleTextChunks(text, maxChunkSize = 1000) {
-  const chunks = [];
-  let currentChunk = '';
-  let chunkIndex = 0;
-  
-  // Split content into sentences
-  const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
-  
-  for (const sentence of sentences) {
-    const trimmedSentence = sentence.trim();
-    
-    // Skip very short sentences
-    if (trimmedSentence.length < 20) {
-      continue;
-    }
-    
-    // Check if adding this sentence would exceed max chunk size
-    const testChunk = currentChunk + (currentChunk ? ' ' : '') + trimmedSentence;
-    
-    if (testChunk.length > maxChunkSize && currentChunk.trim()) {
-      // Current chunk is ready - ensure it ends with a period
-      let finalChunk = currentChunk.trim();
-      if (!finalChunk.endsWith('.') && !finalChunk.endsWith('!') && !finalChunk.endsWith('?')) {
-        finalChunk += '.';
-      }
-      
-      chunks.push({
-        content: finalChunk,
-        structure_path: `Chunk ${chunkIndex + 1}`,
-        chunk_index: chunkIndex,
-        page_title: 'Text File',
-        block_type: 'text_chunk'
-      });
-      
-      chunkIndex++;
-      currentChunk = trimmedSentence;
-    } else {
-      currentChunk = testChunk;
-    }
+async function processPDF(buffer) {
+  try {
+    const data = await pdfParse(buffer);
+    return {
+      content: data.text,
+      pages: data.numpages,
+      info: data.info
+    };
+  } catch (error) {
+    throw new Error(`PDF processing failed: ${error.message}`);
   }
-  
-  // Add the last chunk if it has content
-  if (currentChunk.trim()) {
-    let finalChunk = currentChunk.trim();
-    if (!finalChunk.endsWith('.') && !finalChunk.endsWith('!') && !finalChunk.endsWith('?')) {
-      finalChunk += '.';
-    }
-    
-    chunks.push({
-      content: finalChunk,
-      structure_path: `Chunk ${chunkIndex + 1}`,
-      chunk_index: chunkIndex,
-      page_title: 'Text File',
-      block_type: 'text_chunk'
-    });
-  }
-  
-  return chunks;
 }
 
 // ===== EPUB PROCESSING FUNCTIONS =====
@@ -975,10 +825,10 @@ app.post('/upload-source', async (req, res) => {
       console.log(`PDF processed: ${pdfData.pages} pages, ${processedContent.length} characters`);
       console.log(`First 200 chars: ${processedContent.substring(0, 200)}...`);
       
-      // Create chunks from PDF content using sentence-based chunking
-      chunks = createPDFChunks(processedContent, 500, 1000);
+      // Create chunks from PDF content using simple character-based chunking
+      chunks = createPDFChunks(processedContent, 800, 1200);
       
-      console.log(`PDF chunking: Created ${chunks.length} chunks (500-1000 chars each, ending with periods)`);
+      console.log(`PDF chunking: Created ${chunks.length} chunks (800-1200 chars each, ending with periods)`);
       console.log(`First chunk:`, chunks[0]?.content?.substring(0, 200) + '...');
       
     } else if (source_type === 'epub') {
@@ -998,7 +848,7 @@ app.post('/upload-source', async (req, res) => {
       
       // Create chunks from EPUB content using paragraph-based chunking
       console.log(`EPUB: Creating text chunks...`);
-      const textChunks = splitIntoParagraphChunks(processedContent, 1000);
+      const textChunks = splitIntoParagraphChunks(processedContent, 2000);
       console.log(`EPUB: Created ${textChunks.length} raw chunks`);
       
       chunks = textChunks
@@ -1024,9 +874,18 @@ app.post('/upload-source', async (req, res) => {
       chunks = parseRoamJSON(content);
       
     } else {
-      // Handle text files with simple character-based chunking
+      // Handle text files with paragraph-based chunking
       processedContent = content;
-      chunks = createSimpleTextChunks(content, 1000);
+      const textChunks = splitIntoParagraphChunks(content, 2000);
+      chunks = textChunks
+        .filter(chunk => chunk.length > 30 && isCompleteSentence(chunk))
+        .map((chunk, index) => ({
+          content: chunk,
+          structure_path: `Chunk ${index + 1}`,
+          chunk_index: index,
+          page_title: title,
+          block_type: 'text_chunk'
+        }));
     }
     
     // 2. Insert source into database
@@ -1395,30 +1254,12 @@ app.post('/search', async (req, res) => {
     // 2. Search similar vectors in Qdrant
     const searchResult = await qdrant.search('documents', {
       vector: queryEmbedding,
-      limit: limit * 2, // Get more results to account for filtering
+      limit: limit,
       with_payload: true
     });
     
-    // 3. Get unique source IDs from search results
-    const sourceIds = [...new Set(searchResult.map(point => point.payload.source_id))];
-    
-    // 4. Check which sources still exist in the database
-    const { data: existingSources, error: sourcesError } = await supabase
-      .from('sources')
-      .select('id')
-      .in('id', sourceIds);
-    
-    if (sourcesError) throw sourcesError;
-    
-    const existingSourceIds = new Set(existingSources.map(source => source.id));
-    
-    // 5. Filter results to only include chunks from existing sources
-    const validResults = searchResult.filter(point => 
-      existingSourceIds.has(point.payload.source_id)
-    ).slice(0, limit); // Limit to requested number
-    
-    // 6. Format results
-    const results = validResults.map(point => ({
+    // 3. Format results
+    const results = searchResult.map(point => ({
       score: point.score,
       content: point.payload.content,
       source_title: point.payload.source_title,
@@ -1466,26 +1307,8 @@ app.post('/search-filtered', async (req, res) => {
       with_payload: true
     });
     
-    // 3. Get unique source IDs from search results
-    const sourceIds = [...new Set(searchResult.map(point => point.payload.source_id))];
-    
-    // 4. Check which sources still exist in the database
-    const { data: existingSources, error: sourcesError } = await supabase
-      .from('sources')
-      .select('id')
-      .in('id', sourceIds);
-    
-    if (sourcesError) throw sourcesError;
-    
-    const existingSourceIds = new Set(existingSources.map(source => source.id));
-    
-    // 5. Filter results to only include chunks from existing sources
-    const validSearchResults = searchResult.filter(point => 
-      existingSourceIds.has(point.payload.source_id)
-    );
-    
-    // 6. Format results
-    let results = validSearchResults.map(point => ({
+    // 3. Format results
+    let results = searchResult.map(point => ({
       score: point.score,
       content: point.payload.content,
       source_title: point.payload.source_title,
@@ -1500,7 +1323,7 @@ app.post('/search-filtered', async (req, res) => {
       secondary_confidence: point.payload.secondary_confidence
     }));
 
-    // 7. Apply category and confidence filters
+    // 4. Apply category and confidence filters
     if (primary_category || secondary_category || min_confidence) {
       results = results.filter(result => {
         // Check primary category filter
@@ -1522,7 +1345,7 @@ app.post('/search-filtered', async (req, res) => {
       });
     }
 
-    // 8. Limit results to requested amount
+    // 5. Limit results to requested amount
     results = results.slice(0, limit);
 
     res.json(results);
@@ -1562,34 +1385,24 @@ function parseTextSearchQuery(query) {
   // Split remaining query by spaces
   const words = query.split(/\s+/).filter(word => word.length > 0);
   
-  let hasOrOperator = false;
-  let orTerms = [];
-  
-  for (let i = 0; i < words.length; i++) {
-    const cleanWord = words[i].toLowerCase();
+  for (const word of words) {
+    const cleanWord = word.toLowerCase();
     
     if (cleanWord.startsWith('-')) {
       // Exclusion term
       terms.mustExclude.push(cleanWord.substring(1));
     } else if (cleanWord.toUpperCase() === 'OR') {
-      // OR operator found
-      hasOrOperator = true;
-      // Add all previous terms to OR group
-      orTerms.push(...terms.mustInclude);
-      terms.mustInclude = [];
+      // OR operator - next word goes to shouldInclude
+      continue;
     } else {
-      // Regular term
-      if (hasOrOperator) {
-        orTerms.push(cleanWord);
-      } else {
-        terms.mustInclude.push(cleanWord);
-      }
+      // Regular term - goes to mustInclude by default
+      terms.mustInclude.push(cleanWord);
     }
   }
   
-  // If we found OR operator, move all OR terms to shouldInclude
-  if (hasOrOperator) {
-    terms.shouldInclude = orTerms;
+  // Handle OR logic: if we have shouldInclude terms, move the last mustInclude to shouldInclude
+  if (terms.shouldInclude.length > 0 && terms.mustInclude.length > 0) {
+    terms.shouldInclude.push(terms.mustInclude.pop());
   }
   
   return terms;
@@ -1599,46 +1412,38 @@ function parseTextSearchQuery(query) {
 function matchesTextSearch(content, searchTerms) {
   const lowerContent = content.toLowerCase();
   
-  // Check exact phrases first (these can be partial matches within the phrase)
+  // Check exact phrases first
   for (const phrase of searchTerms.exactPhrases) {
     if (!lowerContent.includes(phrase)) {
       return false;
     }
   }
   
-  // Check exclusion terms (whole word matching)
+  // Check exclusion terms
   for (const excludeTerm of searchTerms.mustExclude) {
-    const regex = new RegExp(`\\b${escapeRegExp(excludeTerm)}\\b`, 'i');
-    if (regex.test(lowerContent)) {
+    if (lowerContent.includes(excludeTerm)) {
       return false;
     }
   }
   
-  // Check must-include terms (whole word matching)
+  // Check must-include terms (AND logic)
   for (const includeTerm of searchTerms.mustInclude) {
-    const regex = new RegExp(`\\b${escapeRegExp(includeTerm)}\\b`, 'i');
-    if (!regex.test(lowerContent)) {
+    if (!lowerContent.includes(includeTerm)) {
       return false;
     }
   }
   
-  // Check should-include terms (whole word matching)
+  // Check should-include terms (OR logic)
   if (searchTerms.shouldInclude.length > 0) {
-    const hasAnyShouldInclude = searchTerms.shouldInclude.some(term => {
-      const regex = new RegExp(`\\b${escapeRegExp(term)}\\b`, 'i');
-      return regex.test(lowerContent);
-    });
+    const hasAnyShouldInclude = searchTerms.shouldInclude.some(term => 
+      lowerContent.includes(term)
+    );
     if (!hasAnyShouldInclude) {
       return false;
     }
   }
   
   return true;
-}
-
-// Escape special regex characters
-function escapeRegExp(string) {
-  return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // Text search endpoint (literal text search with operators)
@@ -1915,86 +1720,6 @@ app.post('/cleanup-orphaned-chunks', async (req, res) => {
   }
 });
 
-// Complete system reset endpoint - DANGER: This deletes everything!
-app.post('/admin/reset-all', async (req, res) => {
-  try {
-    console.log('Starting complete system reset...');
-    
-    // 1. Delete all embeddings from Qdrant
-    console.log('Clearing Qdrant embeddings...');
-    try {
-      await qdrant.delete('documents', {
-        wait: true,
-        filter: {} // Empty filter deletes everything
-      });
-      console.log('Qdrant embeddings cleared successfully');
-    } catch (qdrantError) {
-      console.error('Error clearing Qdrant:', qdrantError);
-      // Continue with database cleanup even if Qdrant fails
-    }
-    
-    // 2. Delete all chunks from database (this will cascade to other tables)
-    console.log('Clearing database chunks...');
-    const { error: chunksError, count: deletedChunks } = await supabase
-      .from('source_chunks')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all chunks
-    
-    if (chunksError) throw chunksError;
-    console.log(`Deleted ${deletedChunks || 0} chunks from database`);
-    
-    // 3. Delete all sources from database
-    console.log('Clearing database sources...');
-    const { error: sourcesError, count: deletedSources } = await supabase
-      .from('sources')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all sources
-    
-    if (sourcesError) throw sourcesError;
-    console.log(`Deleted ${deletedSources || 0} sources from database`);
-    
-    // 4. Delete all projects from database
-    console.log('Clearing database projects...');
-    const { error: projectsError, count: deletedProjects } = await supabase
-      .from('projects')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all projects
-    
-    if (projectsError) throw projectsError;
-    console.log(`Deleted ${deletedProjects || 0} projects from database`);
-    
-    // 5. Delete all saved notes from database
-    console.log('Clearing database saved notes...');
-    const { error: notesError, count: deletedNotes } = await supabase
-      .from('saved_notes')
-      .delete()
-      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all saved notes
-    
-    if (notesError) throw notesError;
-    console.log(`Deleted ${deletedNotes || 0} saved notes from database`);
-    
-    console.log('Complete system reset finished successfully');
-    
-    res.json({
-      message: 'Complete system reset successful',
-      deleted: {
-        qdrant_embeddings: 'all',
-        database_chunks: deletedChunks || 0,
-        database_sources: deletedSources || 0,
-        database_projects: deletedProjects || 0,
-        database_saved_notes: deletedNotes || 0
-      }
-    });
-    
-  } catch (error) {
-    console.error('System reset error:', error);
-    res.status(500).json({
-      error: 'System reset failed',
-      details: error.message
-    });
-  }
-});
-
 // Add retry logic for Qdrant uploads
 async function uploadToQdrantWithRetry(chunkData, embedding, payload, maxRetries = 3) {
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -2096,7 +1821,7 @@ function detectParagraphBreaks(text) {
 }
 
 // New paragraph-based chunking function
-function splitIntoParagraphChunks(text, maxChunkSize = 1000) {
+function splitIntoParagraphChunks(text, maxChunkSize = 2000) {
   const paragraphs = detectParagraphBreaks(text);
   const chunks = [];
   
