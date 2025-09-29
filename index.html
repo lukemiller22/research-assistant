@@ -125,6 +125,8 @@
             background: white;
             display: flex;
             flex-direction: column;
+            min-height: 0; /* Allow flex item to shrink */
+            height: 100vh; /* Ensure full height */
         }
         
         .writing-header {
@@ -155,11 +157,14 @@
         .writing-content {
             flex: 1;
             padding: 20px;
+            min-height: 0; /* Allow flex item to shrink */
+            display: flex;
+            flex-direction: column;
         }
         
         .editor {
             width: 100%;
-            height: 100%;
+            flex: 1;
             border: none;
             outline: none;
             font-size: 16px;
@@ -167,6 +172,7 @@
             color: #334155;
             resize: none;
             font-family: Georgia, 'Times New Roman', serif;
+            min-height: 400px; /* Ensure minimum height */
         }
         
         .search-input {
@@ -182,8 +188,11 @@
         
         .search-input.notes-search {
             min-height: 90px;
-            resize: vertical;
+            max-height: 300px;
+            resize: none;
             line-height: 1.5;
+            overflow-y: auto;
+            transition: height 0.2s ease;
         }
         
         .search-input:focus {
@@ -320,6 +329,15 @@
 
         .status-badge.error {
             background: #ef4444;
+        }
+
+        .source-action-btn.review {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .source-action-btn.review:hover {
+            background: #2563eb;
         }
 
         .source-actions {
@@ -480,27 +498,6 @@
             flex-wrap: wrap;
         }
 
-        .category-badge {
-            display: inline-block;
-            padding: 2px 8px;
-            border-radius: 12px;
-            font-size: 11px;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .category-badge.primary {
-            background-color: #dbeafe;
-            color: #1e40af;
-            border: 1px solid #93c5fd;
-        }
-
-        .category-badge.secondary {
-            background-color: #f3f4f6;
-            color: #374151;
-            border: 1px solid #d1d5db;
-        }
 
         .note-actions {
             display: flex;
@@ -529,6 +526,27 @@
         .note-action-btn.saved {
             background: #dcfce7;
             color: #059669;
+        }
+
+        .note-action-btn.delete-btn {
+            color: #64748b;
+        }
+
+        .note-action-btn.delete-btn:hover {
+            background: #fef2f2;
+            color: #dc2626;
+        }
+
+        .note-action-btn.delete-btn.confirming {
+            background: #fef2f2;
+            color: #dc2626;
+            animation: pulse 0.5s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
 
         .note-content {
@@ -870,6 +888,230 @@
             border-radius: 4px;
             margin: 4px 0;
         }
+
+        /* Review Interface Styles */
+        .review-interface {
+            display: none;
+            flex-direction: column;
+            height: 100%;
+            flex: 1;
+            background: #f8fafc;
+        }
+
+        .review-interface.active {
+            display: flex;
+        }
+
+        .review-header {
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .review-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+            margin: 0;
+        }
+
+        .review-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .review-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .review-btn.primary {
+            background: #10b981;
+            color: white;
+        }
+
+        .review-btn.primary:hover {
+            background: #059669;
+        }
+
+        .review-btn.secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .review-btn.secondary:hover {
+            background: #4b5563;
+        }
+
+        .review-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .chunk-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            padding: 16px;
+            position: relative;
+        }
+
+        .chunk-card:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+        }
+
+        .chunk-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .chunk-index {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .chunk-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chunk-action-btn {
+            padding: 4px 8px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chunk-action-btn:hover {
+            background: #f3f4f6;
+            border-color: #9ca3af;
+        }
+
+        .chunk-action-btn.danger {
+            color: #dc2626;
+            border-color: #fca5a5;
+        }
+
+        .chunk-action-btn.danger:hover {
+            background: #fef2f2;
+            border-color: #f87171;
+        }
+        .heading-level-select {
+            padding: 4px 8px;
+            border: 1px solid #d1d5db;
+            background: white;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .heading-level-select:hover {
+            background: #f3f4f6;
+            border-color: #9ca3af;
+        }
+        
+        .chunk-card.heading {
+            border-left: 4px solid #3b82f6;
+            background: #f0f9ff;
+        }
+        
+        .chunk-card.heading .chunk-content {
+            font-weight: 600;
+            font-size: 16px;
+            color: #1e40af;
+        }
+        
+        .chunk-card.heading .chunk-index {
+            color: #3b82f6;
+            font-weight: 600;
+        }
+
+        .chunk-content {
+            min-height: 100px;
+            height: auto;
+            padding: 12px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            font-size: 14px;
+            line-height: 1.5;
+            outline: none;
+            resize: none;
+            width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .chunk-content:focus {
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .chunk-structure {
+            font-size: 12px;
+            color: #6b7280;
+            margin-top: 8px;
+        }
+        
+        .structure-path-input {
+            width: 100%;
+            padding: 4px 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #6b7280;
+            background: #f9fafb;
+            outline: none;
+            transition: all 0.2s;
+        }
+        
+        .structure-path-input:focus {
+            border-color: #3b82f6;
+            background: white;
+            color: #374151;
+        }
+        
+        .structure-path-input::placeholder {
+            color: #9ca3af;
+        }
+
+        .review-stats {
+            background: #f1f5f9;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 16px;
+            font-size: 14px;
+            color: #475569;
+        }
+
+        .empty-review {
+            text-align: center;
+            padding: 60px 20px;
+            color: #6b7280;
+        }
+
+        .empty-review-icon {
+            width: 48px;
+            height: 48px;
+            margin: 0 auto 16px;
+            opacity: 0.5;
+        }
         
         /* Project card styles */
         .project-card {
@@ -1003,7 +1245,7 @@
                 <div class="panel-title">Notes</div>
             </div>
             <div class="panel-content">
-                <textarea class="search-input notes-search" placeholder="Search your sources with a detailed query or question" id="notes-search" oninput="performSearch()" onkeydown="handleSearchKeydown(event)"></textarea>
+                <textarea class="search-input notes-search" placeholder="Search your sources with a detailed query or question" id="notes-search" oninput="performSearch(); autoResizeTextarea(this)" onkeydown="handleSearchKeydown(event)"></textarea>
                 
                 <!-- Search Mode Toggle -->
                 <div class="search-mode-toggle">
@@ -1030,6 +1272,7 @@
                     </div>
                 </div>
                 
+                
                 <!-- Filter Options -->
                 <div class="notes-filters">
                     <select class="filter-select" id="source-filter" onchange="applyFilters()">
@@ -1039,18 +1282,6 @@
                 <div class="notes-filters" style="margin-top: 8px;">
                     <select class="filter-select" id="project-filter" onchange="applyFilters()">
                         <option value="">All Notes</option>
-                    </select>
-                </div>
-                <div class="notes-filters" style="margin-top: 8px; display: none;">
-                    <select class="filter-select" id="category-filter" onchange="applyFilters()">
-                        <option value="">All Categories</option>
-                        <option value="Semantic">Semantic (Meaning)</option>
-                        <option value="Logical">Logical (Truth)</option>
-                        <option value="Personal">Personal (Self)</option>
-                        <option value="Narrative">Narrative (Time)</option>
-                        <option value="Practical">Practical (Goodness)</option>
-                        <option value="Symbolic">Symbolic (Beauty)</option>
-                        <option value="Reference">Reference (Authority)</option>
                     </select>
                 </div>
                 
@@ -1125,6 +1356,28 @@
         </div>
     </div>
     
+    <!-- Review Interface -->
+    <div class="review-interface" id="review-interface">
+        <div class="review-header">
+            <h2 class="review-title" id="review-title">AI Curation Status</h2>
+            <div class="review-actions">
+                <button class="review-btn secondary" onclick="closeReviewInterface()">Close</button>
+                <button class="review-btn primary" onclick="completeAICuration()">Complete Processing</button>
+            </div>
+        </div>
+        <div class="review-content" id="review-content">
+            <div class="empty-review">
+                <div class="empty-review-icon">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                    </svg>
+                </div>
+                <div class="empty-title">AI Curation Complete</div>
+                <div class="empty-description">Your document has been processed by AI and is ready for search</div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Writing Area -->
     <div class="writing-area">
         <div class="writing-header">
@@ -1174,11 +1427,52 @@
         let searchMode = 'smart'; // 'smart' or 'text'
         let autoSearchTimeout = null;
         let currentSearchQuery = '';
-        let searchLimit = 10;
+        let searchLimit = 10; // Display 10 results at a time
+        let totalSearchLimit = 20; // Fetch 20 results total from backend
         let searchOffset = 0;
         let hasMoreResults = false;
         let sidebarCollapsed = false;
         let panelCollapsed = false;
+        
+        // Separate storage for each search type to enable comparison
+        let searchResults = {
+            smart: { allNotes: [], displayedNotes: [], hasMoreResults: false, searchOffset: 0 },
+            text: { allNotes: [], displayedNotes: [], hasMoreResults: false, searchOffset: 0 }
+        };
+        
+        // Auto-resize textarea function
+        function autoResizeTextarea(textarea) {
+            // Reset height to auto to get the correct scrollHeight
+            textarea.style.height = 'auto';
+            // Set height to scrollHeight to fit content
+            textarea.style.height = textarea.scrollHeight + 'px';
+        }
+
+        // Helper functions for managing search results by type
+        function getCurrentSearchResults() {
+            return searchResults[searchMode];
+        }
+        
+        function setCurrentSearchResults(results) {
+            searchResults[searchMode] = results;
+        }
+        
+        function loadSearchResultsForMode(mode) {
+            const results = searchResults[mode];
+            allNotes = results.allNotes;
+            displayedNotes = results.displayedNotes;
+            hasMoreResults = results.hasMoreResults;
+            searchOffset = results.searchOffset;
+        }
+        
+        function saveCurrentSearchResults() {
+            searchResults[searchMode] = {
+                allNotes: allNotes,
+                displayedNotes: displayedNotes,
+                hasMoreResults: hasMoreResults,
+                searchOffset: searchOffset
+            };
+        }
         
         // Toggle functions
         function toggleSidebar() {
@@ -1777,10 +2071,13 @@
             const autoSearchContainer = document.getElementById('auto-search-container');
             const searchInput = document.getElementById('notes-search');
             
+            // Save current results before switching
+            saveCurrentSearchResults();
+            
             if (smartSearchRadio.checked) {
                 searchMode = 'smart';
                 autoSearchContainer.style.display = 'flex';
-                searchInput.placeholder = 'Search your sources with a detailed query or question';
+                searchInput.placeholder = 'Smart search with semantic understanding';
             } else if (textSearchRadio.checked) {
                 searchMode = 'text';
                 autoSearchContainer.style.display = 'none';
@@ -1798,8 +2095,15 @@
                 autoSearchTimeout = null;
             }
             
-            // Clear current results when switching modes
-            displayEmptyState();
+            // Load results for the new mode, or show empty state if no results exist
+            const currentResults = searchResults[searchMode];
+            if (currentResults.allNotes.length > 0) {
+                loadSearchResultsForMode(searchMode);
+                updateAvailableSources(allNotes);
+                applyFilters();
+            } else {
+                displayEmptyState();
+            }
         }
 
         // Auto-search toggle functionality
@@ -1819,6 +2123,7 @@
                 statusDiv.style.opacity = '0';
             }
         }
+        
         
         function showAutoSearchStatus() {
             if (!autoSearchEnabled) return;
@@ -1923,26 +2228,13 @@
             searchOffset = 0;
             currentSearchQuery = query;
             
-            // Update the search input to show what we're searching for
-            const searchInput = document.getElementById('notes-search');
-            searchInput.value = query.substring(0, 80) + (query.length > 80 ? '...' : '');
             
             try {
-                // Check if category filter is active
-                const categoryFilter = document.getElementById('category-filter').value;
-                const useFilteredSearch = categoryFilter && categoryFilter !== '';
-                
-                const endpoint = useFilteredSearch ? '/search-filtered' : '/search';
+                const endpoint = '/search';
                 const requestBody = {
-                    query: query,
-                    limit: 24 // Request more results for better pagination (show 8, keep 16 cached)
+                    query: query, // Use original query for search
+                    limit: totalSearchLimit // Fetch 20 results from backend
                 };
-                
-                // Add category filter parameters if using filtered search
-                if (useFilteredSearch) {
-                    requestBody.primary_category = categoryFilter;
-                    requestBody.min_confidence = 0.3; // Minimum confidence threshold
-                }
                 
                 const response = await fetch(`${API_BASE}${endpoint}`, {
                     method: 'POST',
@@ -1964,6 +2256,9 @@
                 searchOffset = 8;
                 hasMoreResults = results.length > 8;
                 
+                // Save results for this search type
+                saveCurrentSearchResults();
+                
                 updateAvailableSources(results);
                 applyFilters();
                 
@@ -1983,6 +2278,46 @@
                 }
             }
         }
+        
+        // ===== QUERY ENHANCEMENT FUNCTIONS =====
+        
+        function getEditorContext() {
+            // Get context from the editor for query enhancement
+            const editor = document.getElementById('editor');
+            if (!editor) return '';
+            
+            const text = editor.value;
+            const cursorPosition = editor.selectionStart;
+            
+            if (!text || cursorPosition === undefined) {
+                return '';
+            }
+            
+            // Extract 1000 characters of context: 500 before + 500 after cursor
+            const contextSize = 1000;
+            const beforeSize = 500;
+            const afterSize = 500;
+            
+            const beforeCursor = text.substring(0, cursorPosition);
+            const afterCursor = text.substring(cursorPosition);
+            
+            let textChunk = '';
+            
+            // Check if there's enough text after cursor
+            if (afterCursor.length >= afterSize) {
+                // Use 500 before + 500 after
+                const start = Math.max(0, cursorPosition - beforeSize);
+                const end = Math.min(text.length, cursorPosition + afterSize);
+                textChunk = text.substring(start, end);
+            } else {
+                // Use 1000 before cursor if not enough text after
+                const start = Math.max(0, cursorPosition - contextSize);
+                textChunk = text.substring(start, cursorPosition + afterCursor.length);
+            }
+            
+            return textChunk.trim();
+        }
+        
         
         // Text search function (literal text search with operators)
         async function performTextSearch() {
@@ -2006,7 +2341,7 @@
                     },
                     body: JSON.stringify({
                         query: query,
-                        limit: 10
+                        limit: totalSearchLimit // Fetch 20 results from backend
                     })
                 });
                 
@@ -2016,11 +2351,13 @@
                 
                 const results = await response.json();
                 
-                // Store all results and show first 8
+                // Store all results and show first 10
                 allNotes = results;
-                displayedNotes = results.slice(0, 8);
-                searchOffset = 8;
-                hasMoreResults = results.length > 8;
+                displayedNotes = results.slice(0, searchLimit); // Show first 10
+                hasMoreResults = results.length > searchLimit; // Check if there are more than 10
+                
+                // Save results for this search type
+                saveCurrentSearchResults();
                 
                 updateAvailableSources(results);
                 applyFilters();
@@ -2030,6 +2367,8 @@
                 displayErrorState();
             }
         }
+        
+        // Hybrid search function (combines vector and BM25)
         
         // Manual search function (when auto-search is disabled)
         async function performManualSearch() {
@@ -2041,26 +2380,17 @@
                 return;
             }
             
+            
             // Reset for new search
             searchOffset = 0;
-            currentSearchQuery = query;
+            currentSearchQuery = query; // Use original query
             
             try {
-                // Check if category filter is active
-                const categoryFilter = document.getElementById('category-filter').value;
-                const useFilteredSearch = categoryFilter && categoryFilter !== '';
-                
-                const endpoint = useFilteredSearch ? '/search-filtered' : '/search';
+                const endpoint = '/search';
                 const requestBody = {
-                    query: query,
-                    limit: 10
+                    query: query, // Use original query for search
+                    limit: totalSearchLimit // Fetch 20 results from backend
                 };
-                
-                // Add category filter parameters if using filtered search
-                if (useFilteredSearch) {
-                    requestBody.primary_category = categoryFilter;
-                    requestBody.min_confidence = 0.3; // Minimum confidence threshold
-                }
                 
                 const response = await fetch(`${API_BASE}${endpoint}`, {
                     method: 'POST',
@@ -2082,7 +2412,12 @@
                 }
                 
                 allNotes = results;
-                displayedNotes = [...results];
+                displayedNotes = results.slice(0, searchLimit); // Show first 10
+                hasMoreResults = results.length > searchLimit; // Check if there are more than 10
+                
+                // Save results for this search type
+                saveCurrentSearchResults();
+                
                 updateAvailableSources(results);
                 applyFilters();
                 
@@ -2130,21 +2465,12 @@
         
         async function executeSearch(query, limit, offset = 0, isNewSearch = false) {
             try {
-                // Check if category filter is active
-                const categoryFilter = document.getElementById('category-filter').value;
-                const useFilteredSearch = categoryFilter && categoryFilter !== '';
+                const endpoint = '/search';
                 
-                const endpoint = useFilteredSearch ? '/search-filtered' : '/search';
                 const requestBody = {
                     query: query,
-                    limit: limit + 1 // Get one extra to check if there are more results
+                    limit: totalSearchLimit // Fetch 20 results from backend
                 };
-                
-                // Add category filter parameters if using filtered search
-                if (useFilteredSearch) {
-                    requestBody.primary_category = categoryFilter;
-                    requestBody.min_confidence = 0.3; // Minimum confidence threshold
-                }
                 
                 const response = await fetch(`${API_BASE}${endpoint}`, {
                     method: 'POST',
@@ -2160,24 +2486,27 @@
                 
                 const results = await response.json();
                 
-                // Check if there are more results
-                hasMoreResults = results.length > limit;
-                
-                // Remove the extra result if present
-                if (hasMoreResults) {
-                    results.pop();
-                }
-                
                 if (isNewSearch) {
+                    // New search: store all results and show first 10
                     allNotes = results;
-                    displayedNotes = [...results];
+                    displayedNotes = results.slice(0, searchLimit); // Show first 10
+                    hasMoreResults = results.length > searchLimit; // Check if there are more than 10
+                    
+                    // Save results for this search type
+                    saveCurrentSearchResults();
+                    
                     updateAvailableSources(results);
                 } else {
-                    // This is a "load more" operation
-                    const newResults = results.slice(offset);
-                    allNotes = [...allNotes, ...newResults];
+                    // This is a "load more" operation - show next 10 from already fetched results
+                    const startIndex = displayedNotes.length;
+                    const endIndex = Math.min(startIndex + searchLimit, allNotes.length);
+                    const newResults = allNotes.slice(startIndex, endIndex);
+                    
                     displayedNotes = [...displayedNotes, ...newResults];
-                    updateAvailableSources(allNotes);
+                    hasMoreResults = endIndex < allNotes.length; // Check if there are more results to show
+                    
+                    // Update saved results
+                    saveCurrentSearchResults();
                 }
                 
                 applyFilters();
@@ -2197,8 +2526,6 @@
                 loadMoreBtn.textContent = 'Loading...';
             }
             
-            searchOffset = displayedNotes.length;
-            
             try {
                 // Check if this is a source-specific view (using dropdown filter)
                 const sourceFilter = document.getElementById('source-filter').value;
@@ -2207,51 +2534,33 @@
                 if (sourceFilter && !searchInput) {
                     // We're viewing a specific source without a search query
                     // All notes are already loaded, just show more from the existing array
-                    const remainingNotes = allNotes.slice(searchOffset);
-                    const notesToAdd = remainingNotes.slice(0, searchLimit);
+                    const startIndex = displayedNotes.length;
+                    const endIndex = Math.min(startIndex + searchLimit, allNotes.length);
+                    const notesToAdd = allNotes.slice(startIndex, endIndex);
                     
                     displayedNotes = [...displayedNotes, ...notesToAdd];
-                    hasMoreResults = searchOffset + searchLimit < allNotes.length;
+                    hasMoreResults = endIndex < allNotes.length;
                     
                     applyFilters();
                 } else if (currentSearchQuery.startsWith('source:')) {
                     // Legacy source-specific search (shouldn't happen with new implementation)
-                    const remainingNotes = allNotes.slice(searchOffset);
-                    const notesToAdd = remainingNotes.slice(0, searchLimit);
+                    const startIndex = displayedNotes.length;
+                    const endIndex = Math.min(startIndex + searchLimit, allNotes.length);
+                    const notesToAdd = allNotes.slice(startIndex, endIndex);
                     
                     displayedNotes = [...displayedNotes, ...notesToAdd];
-                    hasMoreResults = searchOffset + searchLimit < allNotes.length;
+                    hasMoreResults = endIndex < allNotes.length;
                     
                     applyFilters();
                 } else if (currentSearchQuery) {
-                    // Regular search - fetch more from backend
-                    const response = await fetch(`${API_BASE}/search`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            query: currentSearchQuery,
-                            limit: searchLimit + 1 // Get one extra to check if there are more results
-                        })
-                    });
+                    // Regular search - show next 10 from already fetched results
+                    const startIndex = displayedNotes.length;
+                    const endIndex = Math.min(startIndex + searchLimit, allNotes.length);
+                    const notesToAdd = allNotes.slice(startIndex, endIndex);
                     
-                    if (!response.ok) {
-                        throw new Error(`Load more failed: ${response.status}`);
-                    }
+                    displayedNotes = [...displayedNotes, ...notesToAdd];
+                    hasMoreResults = endIndex < allNotes.length;
                     
-                    const results = await response.json();
-                    const newResults = results.slice(searchOffset);
-                    
-                    // Check if there are more results after these
-                    hasMoreResults = results.length > searchOffset + searchLimit;
-                    
-                    // Take only the new results we need
-                    const resultsToAdd = newResults.slice(0, searchLimit);
-                    
-                    allNotes = [...allNotes, ...resultsToAdd];
-                    displayedNotes = [...displayedNotes, ...resultsToAdd];
-                    updateAvailableSources(allNotes);
                     applyFilters();
                 }
                 
@@ -2260,7 +2569,7 @@
             } finally {
                 if (loadMoreBtn) {
                     loadMoreBtn.disabled = false;
-                    loadMoreBtn.textContent = 'Load More';
+                    loadMoreBtn.textContent = 'Show More';
                 }
             }
         }
@@ -2342,7 +2651,6 @@
         function applyFilters() {
             const sourceFilter = document.getElementById('source-filter').value;
             const projectFilter = document.getElementById('project-filter').value;
-            const categoryFilter = document.getElementById('category-filter').value;
             
             let filteredNotes = [...displayedNotes]; // Use displayedNotes instead of allNotes
             
@@ -2366,13 +2674,6 @@
                 }
             }
             
-            // Apply category filter
-            if (categoryFilter) {
-                filteredNotes = filteredNotes.filter(note => 
-                    note.primary_category === categoryFilter || 
-                    note.secondary_category === categoryFilter
-                );
-            }
             
             displayNotes(filteredNotes);
         }
@@ -2398,7 +2699,7 @@
                 loadMoreContainer.className = 'load-more-container';
                 loadMoreContainer.innerHTML = `
                     <button class="load-more-btn" id="load-more-btn" onclick="loadMoreResults()">
-                        Load More Results
+                        Show More
                     </button>
                 `;
                 resultsContainer.appendChild(loadMoreContainer);
@@ -2464,6 +2765,7 @@
         function createNoteCard(note, showContextButton = true) {
             const card = document.createElement('div');
             card.className = 'note-card';
+            card.setAttribute('data-source-id', note.source_id);
             
             const noteId = note.source_id + '-' + note.chunk_index;
             const projectNotes = savedNotes.get(currentProjectId);
@@ -2477,12 +2779,27 @@
             
             // Generate context button HTML conditionally
             const contextButton = showContextButton ? `
-                        <button class="note-action-btn" 
-                                onclick="showNoteInContext('${note.source_id}', '${note.source_title}', ${note.chunk_index}, '${note.content.replace(/'/g, "\\'")}')" 
+                        <button class="note-action-btn context-btn" 
+                                data-source-id="${note.source_id}" 
+                                data-source-title="${note.source_title.replace(/"/g, '&quot;')}" 
+                                data-chunk-index="${note.chunk_index}"
                                 title="View note in context">
                             <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
                                       d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                        </button>` : '';
+            
+            // Generate delete button HTML only when not showing context button (i.e., in source notes panel)
+            const deleteButton = !showContextButton ? `
+                        <button class="note-action-btn delete-btn" 
+                                data-source-id="${note.source_id}" 
+                                data-chunk-index="${note.chunk_index}"
+                                onclick="confirmDeleteNote('${note.source_id}', ${note.chunk_index}, this)" 
+                                title="Delete note">
+                            <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                      d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
                         </button>` : '';
             
@@ -2513,14 +2830,108 @@
                                       d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                             </svg>
                         </button>
+                        ${deleteButton}
                     </div>
                 </div>
                 <div class="note-content">${searchMode === 'text' ? highlightSearchTerms(note.content, currentSearchQuery) : note.content}</div>
             `;
             
+            // Add event listener for context button
+            const contextBtn = card.querySelector('.context-btn');
+            if (contextBtn) {
+                contextBtn.addEventListener('click', function() {
+                    const sourceId = this.dataset.sourceId;
+                    const sourceTitle = this.dataset.sourceTitle;
+                    const chunkIndex = parseInt(this.dataset.chunkIndex);
+                    showNoteInContext(sourceId, sourceTitle, chunkIndex);
+                });
+            }
+            
             return card;
         }
         
+        function confirmDeleteNote(sourceId, chunkIndex, buttonElement) {
+            // Check if this is the first click (delete icon) or second click (confirm)
+            const isConfirming = buttonElement.classList.contains('confirming');
+            
+            if (!isConfirming) {
+                // First click - change to confirm state
+                buttonElement.classList.add('confirming');
+                buttonElement.title = 'Click again to confirm delete';
+                
+                // Change icon to checkmark
+                const icon = buttonElement.querySelector('svg path');
+                icon.setAttribute('d', 'M5 13l4 4L19 7');
+                
+                // Change color to red
+                buttonElement.style.color = '#ef4444';
+                
+                // Reset after 3 seconds if not clicked again
+                setTimeout(() => {
+                    if (buttonElement.classList.contains('confirming')) {
+                        resetDeleteButton(buttonElement);
+                    }
+                }, 3000);
+            } else {
+                // Second click - actually delete the note
+                deleteNote(sourceId, chunkIndex, buttonElement);
+            }
+        }
+        
+        function resetDeleteButton(buttonElement) {
+            buttonElement.classList.remove('confirming');
+            buttonElement.title = 'Delete note';
+            buttonElement.style.color = '';
+            
+            // Reset icon to trash
+            const icon = buttonElement.querySelector('svg path');
+            icon.setAttribute('d', 'M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16');
+        }
+        
+        async function deleteNote(sourceId, chunkIndex, buttonElement) {
+            try {
+                const response = await fetch(`${API_BASE}/delete-note`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        source_id: sourceId, 
+                        chunk_index: chunkIndex 
+                    })
+                });
+                
+                if (response.ok) {
+                    // Remove the note card from the UI
+                    const noteCard = buttonElement.closest('.note-card');
+                    noteCard.remove();
+                    
+                    // Update the source's chunk count in the UI
+                    updateSourceChunkCount(sourceId);
+                } else {
+                    const error = await response.json();
+                    console.error('Error deleting note:', error);
+                    alert('Failed to delete note. Please try again.');
+                    resetDeleteButton(buttonElement);
+                }
+            } catch (error) {
+                console.error('Error deleting note:', error);
+                alert('Failed to delete note. Please try again.');
+                resetDeleteButton(buttonElement);
+            }
+        }
+        
+        function updateSourceChunkCount(sourceId) {
+            // Find the source card and update its chunk count
+            const sourceCard = document.querySelector(`[data-source-id="${sourceId}"]`);
+            if (sourceCard) {
+                const statusBadge = sourceCard.querySelector('.status-badge');
+                if (statusBadge) {
+                    // Count remaining notes for this source by looking for note cards with matching source_id
+                    const remainingNotes = document.querySelectorAll(`.note-card[data-source-id="${sourceId}"]`).length;
+                    statusBadge.textContent = `${remainingNotes} notes`;
+                }
+            }
+        }
+
         function toggleSaveNote(noteId) {
             if (!currentProjectId) {
                 return;
@@ -2985,12 +3396,12 @@
                     contentElement.appendChild(noteCard);
                 });
                 
-                // Add "Load More" button if there are more notes
+                // Add "Show More" button if there are more notes
                 if (hasMore) {
                     const loadMoreBtn = document.createElement('button');
                     loadMoreBtn.id = 'source-load-more-btn';
                     loadMoreBtn.className = 'load-more-btn';
-                    loadMoreBtn.textContent = `Load More Notes (${sourceNotes.length - initialCount} remaining)`;
+                    loadMoreBtn.textContent = `Show More Notes (${sourceNotes.length - initialCount} remaining)`;
                     loadMoreBtn.onclick = () => loadMoreSourceNotes(sourceNotes, initialCount);
                     contentElement.appendChild(loadMoreBtn);
                 }
@@ -3038,7 +3449,7 @@
             
             // Update button or remove it
             if (remaining > 0) {
-                loadMoreBtn.textContent = `Load More Notes (${remaining} remaining)`;
+                loadMoreBtn.textContent = `Show More Notes (${remaining} remaining)`;
                 loadMoreBtn.onclick = () => loadMoreSourceNotes(allNotes, currentCount + 20);
             } else {
                 loadMoreBtn.remove();
@@ -3140,12 +3551,12 @@
                     contentElement.appendChild(noteCard);
                 });
                 
-                // Add "Load More" button if there are more notes
+                // Add "Show More" button if there are more notes
                 if (hasMore) {
                     const loadMoreBtn = document.createElement('button');
                     loadMoreBtn.id = 'source-load-more-btn';
                     loadMoreBtn.className = 'load-more-btn';
-                    loadMoreBtn.textContent = `Load More Notes (${sourceNotes.length - 20} remaining)`;
+                    loadMoreBtn.textContent = `Show More Notes (${sourceNotes.length - 20} remaining)`;
                     loadMoreBtn.onclick = () => loadMoreSourceNotes(sourceNotes, 20);
                     contentElement.appendChild(loadMoreBtn);
                 }
@@ -3433,15 +3844,60 @@
                 updateSourceStatus(tempId, {
                     id: result.source_id,
                     chunks_created: result.chunks_created,
-                    status: 'completed'
+                    processing_status: result.status
                 });
                 
                 // Small delay to ensure UI is updated before user can interact
                 setTimeout(() => {
-                    // Show success message
-                    updateUploadProgress('completed', `✓ Upload completed successfully! Created ${result.chunks_created} notes.`);
+                    // Show success message based on status
+                    console.log('Upload result status:', result.status);
+                    if (result.status === 'pending_review') {
+                        console.log('Starting automatic embedding generation...');
+                        updateUploadProgress('processing', `🤖 Processing your document... Generating embeddings in progress.`);
+                        
+                        // Automatically start embedding generation
+                        setTimeout(async () => {
+                            try {
+                                console.log('Triggering embedding generation for source:', result.source_id);
+                                updateUploadProgress('processing', `🤖 Generating embeddings... This may take a few minutes.`);
+                                
+                                const completeResponse = await fetch(`${API_BASE}/complete-source-processing`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ source_id: result.source_id })
+                                });
+                                
+                                console.log('Complete response status:', completeResponse.status);
+                                console.log('Complete response ok:', completeResponse.ok);
+                                
+                                if (completeResponse.ok) {
+                                    const completeResult = await completeResponse.json();
+                                    console.log('Embedding generation completed:', completeResult);
+                                    updateUploadProgress('completed', `✓ Processing complete! ${completeResult.chunks_created} chunks ready for search.`);
+                                    
+                                    // Update the source status in the UI
+                                    updateSourceStatus(result.source_id, {
+                                        processing_status: 'completed',
+                                        chunks_created: completeResult.chunks_created
+                                    });
+                                } else {
+                                    const errorText = await completeResponse.text();
+                                    console.error('Error completing processing:', completeResponse.status, completeResponse.statusText, errorText);
+                                    updateUploadProgress('error', `❌ Error completing processing. Please try again.`);
+                                }
+                            } catch (error) {
+                                console.error('Error completing processing:', error);
+                                updateUploadProgress('error', `❌ Error completing processing. Please try again.`);
+                            }
+                        }, 2000); // Wait 2 seconds before starting embedding generation
+                    } else {
+                        console.log('Upload completed without processing needed');
+                        updateUploadProgress('completed', `✓ Upload completed successfully! Created ${result.chunks_created} notes.`);
+                    }
                     // Hide upload form after successful upload
                     hideUploadInterface();
+                    // Refresh the source list to show the new source with correct status
+                    loadSourcesFromBackend();
                 }, 100);
                 
                 clearTimeout(uploadTimeout);
@@ -3556,16 +4012,17 @@
                         </div>
                     `;
                 } else {
-                    sources.forEach(source => {
-                        addSourceToUI({
-                            id: source.id,
-                            title: source.title,
-                            author: source.author,
-                            source_type: source.source_type,
-                            status: 'completed',
-                            chunks_created: source.chunk_count
+                        sources.forEach(source => {
+                            addSourceToUI({
+                                id: source.id,
+                                title: source.title,
+                                author: source.author,
+                                source_type: source.source_type,
+                                processing_status: source.processing_status,
+                                chunks_created: source.chunk_count,
+                                chunk_count: source.chunk_count
+                            });
                         });
-                    });
                 }
                 
             } catch (error) {
@@ -3596,7 +4053,7 @@
             sourceCard.className = 'source-card';
             sourceCard.id = `source-${source.id}`;
             
-            const statusBadge = getStatusBadge(source.status, source);
+            const statusBadge = getStatusBadge(source.processing_status, { chunks_created: source.chunks_created, chunk_count: source.chunk_count });
             const icon = getSourceIcon(source.source_type);
             
             sourceCard.innerHTML = `
@@ -3608,7 +4065,7 @@
                     </div>
                     ${statusBadge}
                 </div>
-                <div class="source-actions" style="display: ${source.status === 'processing' ? 'none' : 'flex'};">
+                <div class="source-actions" style="display: ${source.processing_status === 'processing' ? 'none' : 'flex'};">
                     <button class="source-action-btn" onclick="showSourceNotesFromLibrary('${source.id}', '${source.title}')">Notes</button>
                     <button class="source-action-btn" onclick="showSourceDetails('${source.id}', '${source.title}', '${source.author}')">Details</button>
                     <button class="source-action-btn delete" onclick="deleteSource('${source.id}', '${source.title}')">Delete</button>
@@ -3619,15 +4076,19 @@
         }
         
         function updateSourceStatus(tempId, updateData) {
-            const sourceCard = document.getElementById(`source-${tempId}`);
+            // First try to find by tempId, then by real ID if updateData.id is provided
+            let sourceCard = document.getElementById(`source-${tempId}`);
+            if (!sourceCard && updateData.id) {
+                sourceCard = document.getElementById(`source-${updateData.id}`);
+            }
             if (!sourceCard) return;
             
             if (updateData.id && updateData.id !== tempId) {
                 sourceCard.id = `source-${updateData.id}`;
             }
             
-            if (updateData.status) {
-                const statusBadge = getStatusBadge(updateData.status, updateData);
+            if (updateData.processing_status) {
+                const statusBadge = getStatusBadge(updateData.processing_status, updateData);
                 const existingBadge = sourceCard.querySelector('.status-badge');
                 if (existingBadge) {
                     existingBadge.outerHTML = statusBadge;
@@ -3635,8 +4096,8 @@
             }
             
             const actionsDiv = sourceCard.querySelector('.source-actions');
-            if (actionsDiv && updateData.status) {
-                actionsDiv.style.display = updateData.status === 'completed' ? 'flex' : 'none';
+            if (actionsDiv && updateData.processing_status) {
+                actionsDiv.style.display = updateData.processing_status === 'processing' ? 'none' : 'flex';
             }
         }
         
@@ -3649,8 +4110,13 @@
                     badgeClass += ' processing';
                     badgeText = 'Processing...';
                     break;
+                case 'pending_review':
+                    badgeClass += ' processing';
+                    badgeText = 'Processing...';
+                    break;
                 case 'completed':
-                    badgeText = `${data.chunks_created || 0} notes`;
+                case 'uploaded':
+                    badgeText = `${data.chunks_created || data.chunk_count || 0} notes`;
                     break;
                 case 'error':
                     badgeClass += ' error';
@@ -3698,6 +4164,12 @@
             // Initialize projects
             await initializeProjects();
             
+            // Initialize textarea auto-resize
+            const searchTextarea = document.getElementById('notes-search');
+            if (searchTextarea) {
+                autoResizeTextarea(searchTextarea);
+            }
+            
             // Add auto-save for title
             const titleInput = document.getElementById('document-title');
             if (titleInput) {
@@ -3740,6 +4212,7 @@
         window.deleteSource = deleteSource;
         window.performSearch = performSearch;
         window.performAutoSearch = performAutoSearch;
+        window.performHybridSearch = performHybridSearch;
         window.loadMoreResults = loadMoreResults;
         window.applyFilters = applyFilters;
         window.toggleSaveNote = toggleSaveNote;
@@ -3748,6 +4221,7 @@
         window.createNoteCard = createNoteCard;
         window.handleEditorInput = handleEditorInput;
         window.toggleAutoSearch = toggleAutoSearch;
+        window.toggleQueryEnhancement = toggleQueryEnhancement;
         window.toggleSearchMode = toggleSearchMode;
         window.showCreateProjectModal = showCreateProjectModal;
         window.hideCreateProjectModal = hideCreateProjectModal;
@@ -3781,6 +4255,538 @@
         window.showSourceDetails = showSourceDetails;
         window.hideSourceDetails = hideSourceDetails;
         window.saveSourceDetails = saveSourceDetails;
+        
+        // Review Interface Functions
+        let currentReviewSourceId = null;
+        let currentReviewChunks = [];
+        
+        async function viewAICurationStatus(sourceId, sourceTitle) {
+            console.log(`Viewing AI curation status for source: ${sourceTitle}`);
+            currentReviewSourceId = sourceId;
+            
+            // Hide project draft panel
+            const projectDraft = document.querySelector('.writing-area');
+            if (projectDraft) {
+                projectDraft.style.display = 'none';
+            }
+            
+            // Show review interface
+            const reviewInterface = document.getElementById('review-interface');
+            const reviewTitle = document.getElementById('review-title');
+            const reviewContent = document.getElementById('review-content');
+            
+            reviewTitle.textContent = `AI Curation Status - ${sourceTitle}`;
+            reviewInterface.classList.add('active');
+            
+            // Show loading state
+            reviewContent.innerHTML = `
+                <div class="empty-review">
+                    <div class="empty-review-icon">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                    </div>
+                    <div class="empty-title">Loading chunks...</div>
+                    <div class="empty-description">Fetching chunks for review</div>
+                </div>
+            `;
+            
+            try {
+                // Fetch chunks for review
+                const response = await fetch(`${API_BASE}/sources/${sourceId}/chunks-for-review`);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch chunks: ${response.status}`);
+                }
+                
+                currentReviewChunks = await response.json();
+                
+                if (currentReviewChunks.length === 0) {
+                    reviewContent.innerHTML = `
+                        <div class="empty-review">
+                            <div class="empty-review-icon">
+                                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                            </div>
+                            <div class="empty-title">No chunks found</div>
+                            <div class="empty-description">This source has no chunks ready for review</div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                // Render chunks
+                renderReviewChunks();
+                
+            } catch (error) {
+                console.error('Error loading chunks for review:', error);
+                reviewContent.innerHTML = `
+                    <div class="empty-review">
+                        <div class="empty-review-icon">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                            </svg>
+                        </div>
+                        <div class="empty-title">Error loading chunks</div>
+                        <div class="empty-description">${error.message}</div>
+                    </div>
+                `;
+            }
+        }
+        
+        function renderReviewChunks() {
+            const reviewContent = document.getElementById('review-content');
+
+            const statsHtml = `
+                <div class="review-stats">
+                    <strong>${currentReviewChunks.length}</strong> notes ready for review
+                </div>
+            `;
+
+            const chunksHtml = currentReviewChunks.map((chunk, index) => {
+                const isHeading = chunk.heading_level === 'h1' || chunk.heading_level === 'h2' || chunk.heading_level === 'h3' || chunk.heading_level === 'h4';
+                return `
+                <div class="chunk-card ${isHeading ? 'heading' : ''}" data-chunk-id="${chunk.id}">
+                    <div class="chunk-header">
+                        <div class="chunk-index">${isHeading ? 'Heading' : 'Note'} ${chunk.chunk_index + 1}</div>
+                        <div class="chunk-actions">
+                            <button class="chunk-action-btn" onclick="splitChunk('${chunk.id}')" title="Split note">Split</button>
+                            <button class="chunk-action-btn" onclick="deleteChunk('${chunk.id}')" title="Delete note" class="danger">Delete</button>
+                        </div>
+                    </div>
+                    <textarea class="chunk-content" data-chunk-id="${chunk.id}" onblur="updateChunkContent('${chunk.id}')" oninput="autoResizeTextarea(this)">${chunk.content}</textarea>
+                    ${chunk.structure_path && chunk.structure_path.trim() ? `
+                    <div class="chunk-structure">
+                        <input type="text" class="structure-path-input" value="${chunk.structure_path.replace(/\s*>\s*Chunk\s+\d+/g, '')}" data-chunk-id="${chunk.id}" onblur="updateStructurePath('${chunk.id}', this.value)" placeholder="Section name">
+                    </div>
+                    ` : `
+                    <div class="chunk-structure" style="display: none;">
+                        <input type="text" class="structure-path-input" value="" data-chunk-id="${chunk.id}" onblur="updateStructurePath('${chunk.id}', this.value)" placeholder="Section name">
+                    </div>
+                    `}
+                </div>
+            `;
+            }).join('');
+
+            reviewContent.innerHTML = statsHtml + chunksHtml;
+            
+            // Auto-resize all textareas after rendering
+            const textareas = reviewContent.querySelectorAll('.chunk-content');
+            textareas.forEach(textarea => autoResizeTextarea(textarea));
+        }
+        
+        async function updateChunkContent(chunkId) {
+            const textarea = document.querySelector(`textarea[data-chunk-id="${chunkId}"]`);
+            const newContent = textarea.value;
+            
+            // Skip update for temporary chunks (new headings)
+            if (chunkId.startsWith('temp-')) {
+                const chunk = currentReviewChunks.find(c => c.id === chunkId);
+                if (chunk) {
+                    chunk.content = newContent;
+                }
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/chunks/${chunkId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        content: newContent
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to update chunk: ${response.status}`);
+                }
+                
+                // Update local data
+                const chunk = currentReviewChunks.find(c => c.id === chunkId);
+                if (chunk) {
+                    chunk.content = newContent;
+                }
+                
+                console.log(`Chunk ${chunkId} updated successfully`);
+                
+            } catch (error) {
+                console.error('Error updating chunk:', error);
+                alert(`Failed to update chunk: ${error.message}`);
+            }
+        }
+        
+        async function splitChunk(chunkId) {
+            // Don't allow splitting temporary chunks
+            if (chunkId.startsWith('temp-')) {
+                alert('Cannot split new headings. Please complete the review first.');
+                return;
+            }
+            
+            const textarea = document.querySelector(`textarea[data-chunk-id="${chunkId}"]`);
+            const content = textarea.value;
+            const cursorPosition = textarea.selectionStart;
+            
+            if (cursorPosition === 0 || cursorPosition === content.length) {
+                alert('Please position your cursor where you want to split the chunk');
+                return;
+            }
+            
+            // Save current scroll position
+            const reviewContent = document.querySelector('.review-content');
+            const scrollTop = reviewContent ? reviewContent.scrollTop : 0;
+            
+            try {
+                const response = await fetch(`${API_BASE}/chunks/${chunkId}/split`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        splitIndex: cursorPosition
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to split chunk: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                // Update local data
+                const chunkIndex = currentReviewChunks.findIndex(c => c.id === chunkId);
+                if (chunkIndex !== -1) {
+                    currentReviewChunks[chunkIndex] = result.originalChunk;
+                    currentReviewChunks.splice(chunkIndex + 1, 0, result.newChunk);
+                }
+                
+                // Re-render chunks
+                renderReviewChunks();
+                
+                // Restore scroll position
+                if (reviewContent) {
+                    reviewContent.scrollTop = scrollTop;
+                }
+                
+                console.log(`Chunk ${chunkId} split successfully`);
+                
+            } catch (error) {
+                console.error('Error splitting chunk:', error);
+                alert(`Failed to split chunk: ${error.message}`);
+            }
+        }
+        
+        async function deleteChunk(chunkId) {
+            if (!confirm('Are you sure you want to delete this note?')) {
+                return;
+            }
+            
+            // Save current scroll position
+            const reviewContent = document.querySelector('.review-content');
+            const scrollTop = reviewContent ? reviewContent.scrollTop : 0;
+            
+            // Handle temporary chunks (new headings) - just remove from local data
+            if (chunkId.startsWith('temp-')) {
+                currentReviewChunks = currentReviewChunks.filter(c => c.id !== chunkId);
+                // Reindex remaining chunks
+                currentReviewChunks.forEach((chunk, index) => {
+                    chunk.chunk_index = index;
+                });
+                renderReviewChunks();
+                // Restore scroll position
+                if (reviewContent) {
+                    reviewContent.scrollTop = scrollTop;
+                }
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/chunks/${chunkId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to delete chunk: ${response.status}`);
+                }
+                
+                // Update local data
+                currentReviewChunks = currentReviewChunks.filter(c => c.id !== chunkId);
+                
+                // Re-render chunks
+                renderReviewChunks();
+                
+                // Restore scroll position
+                if (reviewContent) {
+                    reviewContent.scrollTop = scrollTop;
+                }
+                
+                console.log(`Chunk ${chunkId} deleted successfully`);
+                
+            } catch (error) {
+                console.error('Error deleting chunk:', error);
+                alert(`Failed to delete chunk: ${error.message}`);
+            }
+        }
+        
+        
+        async function completeReview() {
+            if (!currentReviewSourceId) {
+                console.error('No source selected for review completion');
+                return;
+            }
+            
+            try {
+                // First, save any new headings to the database
+                const newHeadings = currentReviewChunks.filter(chunk => chunk.id.startsWith('temp-'));
+                for (const heading of newHeadings) {
+                    await saveNewHeading(heading);
+                }
+                
+                // Close review interface immediately
+                closeReviewInterface();
+                
+                // Update source status to processing
+                const sourceCard = document.getElementById(`source-${currentReviewSourceId}`);
+                if (sourceCard) {
+                    const statusBadge = sourceCard.querySelector('.status-badge');
+                    if (statusBadge) {
+                        statusBadge.className = 'status-badge processing';
+                        statusBadge.textContent = 'Processing...';
+                    }
+                }
+                
+                // Start processing in background
+                const response = await fetch(`${API_BASE}/complete-source-processing`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        source_id: currentReviewSourceId
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to complete processing: ${response.status}`);
+                }
+                
+                const result = await response.json();
+                
+                // Refresh the source list to show final status
+                loadSourcesFromBackend();
+                
+                // Show success message
+                alert(`Source processing completed! ${result.chunks_created} notes processed.`);
+                
+                console.log('Source processing completed successfully');
+                
+            } catch (error) {
+                console.error('Error completing review:', error);
+                alert(`Failed to complete processing: ${error.message}`);
+                
+                // Refresh source list to show error status
+                loadSourcesFromBackend();
+            }
+        }
+        
+        async function saveNewHeading(heading) {
+            try {
+                const response = await fetch(`${API_BASE}/chunks`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        source_id: heading.source_id,
+                        content: heading.content,
+                        chunk_index: heading.chunk_index,
+                        structure_path: heading.structure_path,
+                        heading_level: heading.heading_level
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to save heading: ${response.status}`);
+                }
+                
+                const savedHeading = await response.json();
+                
+                // Update the local chunk with the real ID
+                const localChunk = currentReviewChunks.find(c => c.id === heading.id);
+                if (localChunk) {
+                    localChunk.id = savedHeading.id;
+                    localChunk.is_new = false;
+                }
+                
+                console.log(`Heading saved with ID: ${savedHeading.id}`);
+                
+            } catch (error) {
+                console.error('Error saving heading:', error);
+                throw error;
+            }
+        }
+        
+        function closeReviewInterface() {
+            const reviewInterface = document.getElementById('review-interface');
+            reviewInterface.classList.remove('active');
+            
+            // Restore project draft panel
+            const projectDraft = document.querySelector('.writing-area');
+            if (projectDraft) {
+                projectDraft.style.display = 'block';
+            }
+            
+            currentReviewSourceId = null;
+            currentReviewChunks = [];
+        }
+
+        function autoResizeTextarea(textarea) {
+            // Reset height to auto to get the correct scrollHeight
+            textarea.style.height = 'auto';
+            // Set height to scrollHeight + a small buffer
+            textarea.style.height = (textarea.scrollHeight + 2) + 'px';
+        }
+
+
+        async function updateStructurePath(chunkId, newPath) {
+            // Find the current chunk
+            const currentChunk = currentReviewChunks.find(c => c.id === chunkId);
+            if (!currentChunk) return;
+            
+            const currentIndex = currentChunk.chunk_index;
+            
+            // Update all chunks from current index onwards
+            const chunksToUpdate = currentReviewChunks.filter(c => c.chunk_index >= currentIndex);
+            
+            // Update local data first
+            chunksToUpdate.forEach(chunk => {
+                chunk.structure_path = newPath;
+            });
+            
+            // Update in database (skip temporary chunks)
+            for (const chunk of chunksToUpdate) {
+                if (chunk.id.startsWith('temp-')) {
+                    continue; // Skip temporary chunks
+                }
+                
+                try {
+                    const response = await fetch(`${API_BASE}/chunks/${chunk.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            structure_path: newPath
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to update structure path: ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error(`Error updating structure path for chunk ${chunk.id}:`, error);
+                    // Continue with other chunks even if one fails
+                }
+            }
+            
+            // Save current scroll position
+            const reviewContent = document.querySelector('.review-content');
+            const scrollTop = reviewContent ? reviewContent.scrollTop : 0;
+            
+            // Re-render to show changes
+            renderReviewChunks();
+            
+            // Restore scroll position
+            if (reviewContent) {
+                reviewContent.scrollTop = scrollTop;
+            }
+            
+            console.log(`Updated structure path for ${chunksToUpdate.length} notes starting from index ${currentIndex}`);
+        }
+
+
+        async function updateHeadingLevel(chunkId, headingLevel) {
+            try {
+                const response = await fetch(`${API_BASE}/chunks/${chunkId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        heading_level: headingLevel
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to update heading level: ${response.status}`);
+                }
+
+                // Update local data
+                const chunk = currentReviewChunks.find(c => c.id === chunkId);
+                if (chunk) {
+                    chunk.heading_level = headingLevel;
+                    
+                    // Update structure path based on heading level
+                    let newStructurePath = chunk.structure_path;
+                    
+                    if (headingLevel === 'h1') {
+                        // Extract the main section name and use the note content as heading
+                        const sectionMatch = chunk.structure_path.match(/^(Section \d+)/);
+                        if (sectionMatch) {
+                            newStructurePath = `${sectionMatch[1]} > ${chunk.content.substring(0, 50)}${chunk.content.length > 50 ? '...' : ''}`;
+                        }
+                    } else if (headingLevel === 'h2') {
+                        // Add as subheading
+                        const sectionMatch = chunk.structure_path.match(/^(Section \d+)/);
+                        if (sectionMatch) {
+                            newStructurePath = `${sectionMatch[1]} > ${chunk.content.substring(0, 30)}${chunk.content.length > 30 ? '...' : ''}`;
+                        }
+                    } else if (headingLevel === 'h3') {
+                        // Add as sub-subheading
+                        const sectionMatch = chunk.structure_path.match(/^(Section \d+)/);
+                        if (sectionMatch) {
+                            newStructurePath = `${sectionMatch[1]} > ${chunk.content.substring(0, 20)}${chunk.content.length > 20 ? '...' : ''}`;
+                        }
+                    } else if (headingLevel === 'h4') {
+                        // Add as sub-sub-subheading
+                        const sectionMatch = chunk.structure_path.match(/^(Section \d+)/);
+                        if (sectionMatch) {
+                            newStructurePath = `${sectionMatch[1]} > ${chunk.content.substring(0, 15)}${chunk.content.length > 15 ? '...' : ''}`;
+                        }
+                    } else {
+                        // For paragraph, keep original structure
+                        newStructurePath = chunk.structure_path;
+                    }
+                    
+                    // Update the structure path in the UI
+                    chunk.structure_path = newStructurePath;
+                    
+                    // Update the structure path display
+                    const structureElement = document.querySelector(`[data-chunk-id="${chunkId}"] .chunk-structure`);
+                    if (structureElement) {
+                        structureElement.textContent = newStructurePath;
+                    }
+                }
+
+                console.log(`Note ${chunkId} heading level updated to ${headingLevel}`);
+
+            } catch (error) {
+                console.error('Error updating heading level:', error);
+                alert(`Failed to update heading level: ${error.message}`);
+            }
+        }
+        
+        // Make functions globally available
+        window.startChunkReview = startChunkReview;
+        window.closeReviewInterface = closeReviewInterface;
+        window.completeReview = completeReview;
+        window.updateChunkContent = updateChunkContent;
+        window.splitChunk = splitChunk;
+        window.deleteChunk = deleteChunk;
+        window.updateHeadingLevel = updateHeadingLevel;
+        window.updateStructurePath = updateStructurePath;
     </script>
 </body>
 </html>

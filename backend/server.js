@@ -8,23 +8,39 @@ const { QdrantClient } = require('@qdrant/js-client-rest');
 const OpenAI = require('openai');
 const pdfParse = require('pdf-parse');
 const AdmZip = require('adm-zip');
-const nltk = require('nltk');
 
 // ===== SIMPLE PDF PROCESSING FUNCTIONS =====
+
+// Remove footnote markers and content from PDF text
+function removeFootnotes(text) {
+  return text
+    // Remove numbered footnote markers in text: [1], [2], [3], etc.
+    .replace(/\[\d+\]/g, '')
+    // Remove superscript footnote numbers: ¹, ², ³, ⁴, ⁵, ⁶, ⁷, ⁸, ⁹, ⁰
+    .replace(/[¹²³⁴⁵⁶⁷⁸⁹⁰]/g, '')
+    // Remove symbol footnote markers: *, †, ‡, §, ¶
+    .replace(/[*†‡§¶]/g, '')
+    // Clean up any double spaces that might result from removals
+    .replace(/\s+/g, ' ')
+    .trim();
+}
 
 async function processPDF(buffer) {
   try {
     const data = await pdfParse(buffer);
     
-    // Return raw text with basic cleanup
+    // Return raw text with basic cleanup and footnote removal
     const cleanedText = data.text
       .replace(/\r\n/g, '\n')
       .replace(/\r/g, '\n')
       .replace(/\s+/g, ' ')
       .trim();
     
+    // Remove footnote markers
+    const textWithoutFootnotes = removeFootnotes(cleanedText);
+    
     return {
-      content: cleanedText,
+      content: textWithoutFootnotes,
       pages: data.numpages,
       info: data.info
     };
@@ -45,8 +61,8 @@ function createPDFChunks(content, minChunkSize = 500, maxChunkSize = 1000) {
   for (const sentence of sentences) {
     const trimmedSentence = sentence.trim();
     
-    // Skip very short sentences
-    if (trimmedSentence.length < 20) {
+    // Include all sentences, including short ones (headings, etc.)
+    if (trimmedSentence.length === 0) {
       continue;
     }
     
@@ -62,7 +78,7 @@ function createPDFChunks(content, minChunkSize = 500, maxChunkSize = 1000) {
       
       chunks.push({
         content: finalChunk,
-        structure_path: `Section ${Math.floor(chunkIndex / 3) + 1} > Chunk ${chunkIndex + 1}`,
+        structure_path: '',
         chunk_index: chunkIndex,
         block_type: 'pdf_chunk'
       });
@@ -83,7 +99,7 @@ function createPDFChunks(content, minChunkSize = 500, maxChunkSize = 1000) {
     
     chunks.push({
       content: finalChunk,
-      structure_path: `Section ${Math.floor(chunkIndex / 3) + 1} > Chunk ${chunkIndex + 1}`,
+      structure_path: '',
       chunk_index: chunkIndex,
       block_type: 'pdf_chunk'
     });
@@ -161,6 +177,292 @@ app.get('/test-qdrant', async (req, res) => {
   }
 });
 
+// Test Qdrant collection info
+app.get('/test-collection', async (req, res) => {
+  try {
+    const collectionInfo = await qdrant.getCollection('documents');
+    res.json({ 
+      message: 'Collection info retrieved!', 
+      collection: collectionInfo
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Failed to get collection info', 
+      error: error.message 
+    });
+  }
+});
+
+// Test database sources
+app.get('/test-sources', async (req, res) => {
+  try {
+    const { data: sources, error } = await supabase
+      .from('sources')
+      .select('id, title')
+      .limit(10);
+    
+    if (error) throw error;
+    
+    res.json({
+      message: 'Database sources retrieved',
+      count: sources.length,
+      sources: sources
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Failed to get sources', 
+      error: error.message 
+    });
+  }
+});
+
+// Test footnote removal
+app.post('/test-footnote-removal', async (req, res) => {
+  try {
+    const { text } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+    
+    const cleanedText = removeFootnotes(text);
+    
+    res.json({
+      original: text,
+      cleaned: cleanedText,
+      removed: text.length - cleanedText.length,
+      removedPercentage: Math.round(((text.length - cleanedText.length) / text.length) * 100)
+    });
+    
+  } catch (error) {
+    res.status(500).json({ 
+      message: 'Footnote removal test failed', 
+      error: error.message 
+    });
+  }
+});
+
+// Clear Qdrant data for a specific source
+app.post('/clear-source-vectors', async (req, res) => {
+  try {
+    const { source_id } = req.body;
+    
+    if (!source_id) {
+      return res.status(400).json({ error: 'Source ID is required' });
+    }
+
+    console.log(`Clearing Qdrant vectors for source: ${source_id}`);
+    
+    // Delete all vectors for this source from Qdrant
+    const deleteResult = await qdrant.delete('documents', {
+      filter: {
+        must: [
+          {
+            key: 'source_id',
+            match: {
+              value: source_id
+            }
+          }
+        ]
+      }
+    });
+    
+    console.log(`Deleted vectors for source ${source_id}:`, deleteResult);
+    
+    res.json({ 
+      message: `Cleared vectors for source ${source_id}`,
+      deleted: deleteResult
+    });
+    
+  } catch (error) {
+    console.error('Error clearing source vectors:', error);
+    res.status(500).json({ 
+      error: 'Failed to clear source vectors',
+      details: error.message 
+    });
+  }
+});
+
+// Clear all chunks from Supabase
+app.post('/clear-all-chunks', async (req, res) => {
+  try {
+    console.log('Clearing all chunks from Supabase...');
+    
+    const { error } = await supabase
+      .from('source_chunks')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
+    
+    if (error) throw error;
+    
+    console.log('All chunks cleared from Supabase');
+    
+    res.json({
+      message: 'All chunks cleared from Supabase',
+      success: true
+    });
+    
+  } catch (error) {
+    console.error('Error clearing all chunks:', error);
+    res.status(500).json({ 
+      error: 'Failed to clear all chunks',
+      details: error.message 
+    });
+  }
+});
+
+// Reset all sources to pending_review status
+app.post('/reset-all-sources', async (req, res) => {
+  try {
+    console.log('Resetting all sources to pending_review status...');
+    
+    const { error } = await supabase
+      .from('sources')
+      .update({ processing_status: 'pending_review' })
+      .neq('id', '00000000-0000-0000-0000-000000000000'); // Update all rows
+    
+    if (error) throw error;
+    
+    console.log('All sources reset to pending_review status');
+    
+    res.json({
+      message: 'All sources reset to pending_review status',
+      success: true
+    });
+    
+  } catch (error) {
+    console.error('Error resetting sources:', error);
+    res.status(500).json({ 
+      error: 'Failed to reset sources',
+      details: error.message 
+    });
+  }
+});
+
+// Complete database reset - clear everything
+app.post('/reset-database', async (req, res) => {
+  try {
+    console.log('Starting complete database reset...');
+    
+    // 1. Clear all chunks first (due to foreign key constraints)
+    console.log('Clearing all chunks...');
+    const chunksError = await supabase
+      .from('source_chunks')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+    
+    if (chunksError.error) {
+      console.log('Chunks clear result:', chunksError);
+    }
+    
+    // 2. Clear all sources
+    console.log('Clearing all sources...');
+    const sourcesError = await supabase
+      .from('sources')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+    
+    if (sourcesError.error) {
+      console.log('Sources clear result:', sourcesError);
+    }
+    
+    // 3. Clear all projects
+    console.log('Clearing all projects...');
+    const projectsError = await supabase
+      .from('projects')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000');
+    
+    if (projectsError.error) {
+      console.log('Projects clear result:', projectsError);
+    }
+    
+    // 4. Clear Qdrant vectors
+    console.log('Clearing Qdrant vectors...');
+    try {
+      // Clear all vectors by deleting the entire collection
+      await qdrant.delete('documents', {
+        filter: {
+          must: [
+            {
+              key: 'source_id',
+              match: {
+                any: ['00000000-0000-0000-0000-000000000000']
+              }
+            }
+          ]
+        }
+      });
+    } catch (qdrantError) {
+      console.log('Qdrant clear result:', qdrantError.message);
+    }
+    
+    console.log('Database reset complete');
+    
+    res.json({
+      message: 'Complete database reset successful',
+      chunks_cleared: chunksError.error ? 'Error' : 'Success',
+      sources_cleared: sourcesError.error ? 'Error' : 'Success', 
+      projects_cleared: projectsError.error ? 'Error' : 'Success',
+      qdrant_cleared: 'Success',
+      success: true
+    });
+    
+  } catch (error) {
+    console.error('Error during database reset:', error);
+    res.status(500).json({ 
+      error: 'Failed to reset database',
+      details: error.message 
+    });
+  }
+});
+
+// Test direct Qdrant search without filtering
+app.post('/test-search', async (req, res) => {
+  try {
+    const { query } = req.body;
+    console.log('=== TEST SEARCH REQUEST ===');
+    console.log(`Query: "${query}"`);
+    
+    // Generate embedding
+    const embeddingResponse = await openai.embeddings.create({
+      model: "text-embedding-3-small",
+      input: query,
+    });
+    
+    const queryEmbedding = embeddingResponse.data[0].embedding;
+    console.log(`Generated embedding with ${queryEmbedding.length} dimensions`);
+    
+    // Search Qdrant directly
+    const searchResult = await qdrant.search('documents', {
+      vector: queryEmbedding,
+      limit: 5,
+      with_payload: true
+    });
+    
+    console.log(`Qdrant returned ${searchResult.length} results`);
+    
+    res.json({
+      message: 'Test search completed',
+      query: query,
+      resultCount: searchResult.length,
+      results: searchResult.map(point => ({
+        id: point.id,
+        score: point.score,
+        source_id: point.payload.source_id,
+        content_preview: point.payload.content ? point.payload.content.substring(0, 100) + '...' : 'No content'
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Test search error:', error);
+    res.status(500).json({ 
+      message: 'Test search failed', 
+      error: error.message 
+    });
+  }
+});
+
 // Test OpenAI embeddings
 app.get('/test-embeddings', async (req, res) => {
   try {
@@ -181,6 +483,7 @@ app.get('/test-embeddings', async (req, res) => {
     });
   }
 });
+
 
 // Test database tables
 app.get('/test-tables', async (req, res) => {
@@ -230,166 +533,6 @@ app.get('/test-tables', async (req, res) => {
   }
 });
 
-// ===== KNOWLEDGE CLASSIFICATION FUNCTIONS =====
-
-// Knowledge Elements Framework categories
-const KNOWLEDGE_CATEGORIES = [
-  'Semantic',    // Meaning - Language
-  'Logical',     // Truth - Reason  
-  'Personal',    // Self - Introspection
-  'Narrative',   // Time - History
-  'Practical',   // Goodness - Experience
-  'Symbolic',    // Beauty - Imagination
-  'Reference'    // Authority - Testimony
-];
-
-// Classify a text chunk using OpenAI
-async function classifyTextChunk(text) {
-  try {
-    const prompt = `Analyze the following text chunk and classify it according to the Knowledge Elements Framework. 
-
-The seven categories are:
-1. Semantic (Meaning) - Concepts, definitions, categories, topics, abstract principles
-2. Logical (Truth) - Arguments, evidence, claims, reasoning, analytical structures  
-3. Personal (Self) - First-person reflections, emotions, beliefs, individual experiences, subjective insights
-4. Narrative (Time) - Historical events, people, places, chronological accounts, stories
-5. Practical (Goodness) - Strategies, solutions, methods, actionable advice, procedures
-6. Symbolic (Beauty) - Metaphors, themes, symbols, figurative meaning, artistic interpretation, poetic language
-7. Reference (Authority) - Citations, sources, scholarly apparatus, external validation
-
-Text to classify:
-"${text}"
-
-Respond with a JSON object in this exact format:
-{
-  "primary_category": "CategoryName",
-  "primary_confidence": 0.85,
-  "secondary_category": "CategoryName", 
-  "secondary_confidence": 0.65
-}
-
-Classification Guidelines:
-- PERSONAL: Only choose when the text expresses genuine personal experience, emotion, belief, or subjective insight. Mere use of "I" or "my" in analytical or descriptive contexts does NOT qualify as Personal.
-- SYMBOLIC: Look for metaphors, similes, figurative language, poetic expressions, symbolic references, and artistic interpretation. Be generous with this category - even subtle metaphors should be recognized.
-- Choose the most dominant knowledge type as primary_category
-- Only include secondary_category if there's a meaningful secondary presence (confidence > 0.3)
-- Use exact category names: Semantic, Logical, Personal, Narrative, Practical, Symbolic, Reference
-- Confidence scores should be between 0.0 and 1.0
-- If no clear secondary category exists, set secondary_category to null and secondary_confidence to null`;
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini", // Using mini for cost efficiency
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert text classifier specializing in the Knowledge Elements Framework. Always respond with valid JSON in the exact format requested."
-        },
-        {
-          role: "user", 
-          content: prompt
-        }
-      ],
-      temperature: 0.1, // Low temperature for consistent classification
-      max_tokens: 200
-    });
-
-    const result = JSON.parse(response.choices[0].message.content);
-    
-    // Validate the response
-    if (!KNOWLEDGE_CATEGORIES.includes(result.primary_category)) {
-      throw new Error(`Invalid primary category: ${result.primary_category}`);
-    }
-    
-    if (result.secondary_category && !KNOWLEDGE_CATEGORIES.includes(result.secondary_category)) {
-      throw new Error(`Invalid secondary category: ${result.secondary_category}`);
-    }
-    
-    // Ensure confidence scores are valid
-    if (result.primary_confidence < 0 || result.primary_confidence > 1) {
-      result.primary_confidence = 0.5; // Default fallback
-    }
-    
-    if (result.secondary_confidence !== null && (result.secondary_confidence < 0 || result.secondary_confidence > 1)) {
-      result.secondary_confidence = null;
-    }
-    
-    // If secondary confidence is too low, remove secondary category
-    if (result.secondary_confidence !== null && result.secondary_confidence < 0.3) {
-      result.secondary_category = null;
-      result.secondary_confidence = null;
-    }
-    
-    return result;
-    
-  } catch (error) {
-    console.error('Classification error:', error);
-    
-    // Fallback classification - try to determine category from text patterns
-    return fallbackClassification(text);
-  }
-}
-
-// Fallback classification using pattern matching
-function fallbackClassification(text) {
-  const lowerText = text.toLowerCase();
-  
-  // Simple pattern matching for fallback
-  let primaryCategory = 'Semantic'; // Default
-  let primaryConfidence = 0.5;
-  let secondaryCategory = null;
-  let secondaryConfidence = null;
-  
-  // Check for Symbolic indicators (more generous)
-  const symbolicPatterns = [
-    /\b(fresh|breeze|wind|light|dark|shadow|dawn|twilight|storm|calm)\b/i,
-    /\b(like|as|metaphor|symbol|represents|signifies|embodies)\b/i,
-    /\b(beauty|beautiful|poetic|artistic|imagery|vision)\b/i,
-    /\b(centuries|eternal|timeless|ancient|modern)\b/i
-  ];
-  
-  if (symbolicPatterns.some(pattern => pattern.test(text))) {
-    primaryCategory = 'Symbolic';
-    primaryConfidence = 0.7;
-  }
-  // Check for Personal indicators (more restrictive)
-  else if ((lowerText.includes(' i feel ') || lowerText.includes(' i believe ') || 
-           lowerText.includes(' i experienced ') || lowerText.includes(' i remember ') ||
-           lowerText.includes(' my experience ') || lowerText.includes(' personally ')) &&
-           !lowerText.includes(' i think ') && !lowerText.includes(' i would ')) {
-    primaryCategory = 'Personal';
-    primaryConfidence = 0.7;
-  }
-  // Check for Narrative indicators  
-  else if (/\d{4}|\d{1,2}\/\d{1,2}\/\d{2,4}|january|february|march|april|may|june|july|august|september|october|november|december/i.test(text)) {
-    primaryCategory = 'Narrative';
-    primaryConfidence = 0.6;
-  }
-  // Check for Practical indicators
-  else if (lowerText.includes(' how to ') || lowerText.includes(' step ') || lowerText.includes(' method ') ||
-           lowerText.includes(' process ') || lowerText.includes(' procedure ')) {
-    primaryCategory = 'Practical';
-    primaryConfidence = 0.6;
-  }
-  // Check for Logical indicators
-  else if (lowerText.includes(' therefore ') || lowerText.includes(' because ') || lowerText.includes(' however ') ||
-           lowerText.includes(' evidence ') || lowerText.includes(' argument ')) {
-    primaryCategory = 'Logical';
-    primaryConfidence = 0.6;
-  }
-  // Check for Reference indicators
-  else if (lowerText.includes(' according to ') || lowerText.includes(' cited ') || lowerText.includes(' reference ') ||
-           lowerText.includes(' source ') || lowerText.includes(' bibliography ')) {
-    primaryCategory = 'Reference';
-    primaryConfidence = 0.6;
-  }
-  
-  return {
-    primary_category: primaryCategory,
-    primary_confidence: primaryConfidence,
-    secondary_category: secondaryCategory,
-    secondary_confidence: secondaryConfidence
-  };
-}
 
 // ===== ROAM PARSING FUNCTIONS =====
 
@@ -521,8 +664,8 @@ function collectBlocks(blocks, pageBlocks, pageTitle, parentPath = '', blockMap 
       blockText = cleanRoamText(blockText, blockMap);
     }
       
-    // Add block if it has meaningful content
-    if (blockText.length > 30 && isCompleteSentence(blockText)) {
+    // Add block if it has content (including short headings)
+    if (blockText.length > 0) {
       const structurePath = parentPath 
         ? `${pageTitle} > ${parentPath} > Block ${index + 1}`
         : `${pageTitle} > Block ${index + 1}`;
@@ -656,8 +799,8 @@ function processBlocks(blocks, chunks, pageTitle, parentPath = '', startIndex = 
       blockText = cleanRoamText(blockText, blockMap);
     }
       
-      // Skip blocks that are 30 characters or less (increased from 15)
-      if (blockText.length > 30 && isCompleteSentence(blockText)) {
+      // Include all blocks with content (including short headings)
+      if (blockText.length > 0) {
         const structurePath = parentPath 
           ? `${pageTitle} > ${parentPath} > Block ${index + 1}`
           : `${pageTitle} > Block ${index + 1}`;
@@ -693,8 +836,8 @@ function estimateTokens(text) {
 function isCompleteSentence(text) {
   const trimmed = text.trim();
   
-  // Must be at least 30 characters
-  if (trimmed.length < 30) return false;
+  // Must have some content
+  if (trimmed.length === 0) return false;
   
   // Skip if it's all caps (likely a title or heading)
   if (trimmed === trimmed.toUpperCase() && trimmed.length < 200) return false;
@@ -717,8 +860,8 @@ function isCompleteSentence(text) {
   // Must contain at least one complete sentence ending
   const sentenceEndings = /[.!?]\s*$/;
   if (!sentenceEndings.test(trimmed)) {
-    // Allow if it's a long paragraph that might be cut off
-    return trimmed.length > 200;
+    // Allow if it's a long paragraph that might be cut off, or if it's short (likely a heading)
+    return trimmed.length > 200 || trimmed.length < 50;
   }
   
   // Must have some lowercase letters (not all caps)
@@ -746,59 +889,79 @@ function splitLongContent(content, maxTokens = 8000) {
 
 function createSimpleTextChunks(text, maxChunkSize = 1000) {
   const chunks = [];
-  let currentChunk = '';
   let chunkIndex = 0;
   
-  // Split content into sentences
-  const sentences = text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+  // Split content into paragraphs and lines (preserve headings)
+  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
   
-  for (const sentence of sentences) {
-    const trimmedSentence = sentence.trim();
+  for (const paragraph of paragraphs) {
+    const trimmedParagraph = paragraph.trim();
     
-    // Skip very short sentences
-    if (trimmedSentence.length < 20) {
+    if (trimmedParagraph.length === 0) {
       continue;
     }
     
-    // Check if adding this sentence would exceed max chunk size
-    const testChunk = currentChunk + (currentChunk ? ' ' : '') + trimmedSentence;
-    
-    if (testChunk.length > maxChunkSize && currentChunk.trim()) {
-      // Current chunk is ready - ensure it ends with a period
-      let finalChunk = currentChunk.trim();
-      if (!finalChunk.endsWith('.') && !finalChunk.endsWith('!') && !finalChunk.endsWith('?')) {
-        finalChunk += '.';
-      }
-      
+    // If paragraph is short (likely a heading), create a separate chunk
+    if (trimmedParagraph.length <= 100 && !trimmedParagraph.includes('.')) {
       chunks.push({
-        content: finalChunk,
-        structure_path: `Chunk ${chunkIndex + 1}`,
+        content: trimmedParagraph,
+        structure_path: '',
         chunk_index: chunkIndex,
         page_title: 'Text File',
         block_type: 'text_chunk'
       });
-      
       chunkIndex++;
-      currentChunk = trimmedSentence;
+    } else if (trimmedParagraph.length <= maxChunkSize) {
+      // Paragraph fits in one chunk
+      chunks.push({
+        content: trimmedParagraph,
+        structure_path: '',
+        chunk_index: chunkIndex,
+        page_title: 'Text File',
+        block_type: 'text_chunk'
+      });
+      chunkIndex++;
     } else {
-      currentChunk = testChunk;
+      // Split long paragraph into sentences
+      const sentences = trimmedParagraph.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+      let currentChunk = '';
+      
+      for (const sentence of sentences) {
+        const trimmedSentence = sentence.trim();
+        
+        if (trimmedSentence.length === 0) {
+          continue;
+        }
+        
+        const testChunk = currentChunk + (currentChunk ? ' ' : '') + trimmedSentence;
+        
+        if (testChunk.length > maxChunkSize && currentChunk.trim()) {
+          chunks.push({
+            content: currentChunk.trim(),
+            structure_path: '',
+            chunk_index: chunkIndex,
+            page_title: 'Text File',
+            block_type: 'text_chunk'
+          });
+          chunkIndex++;
+          currentChunk = trimmedSentence;
+        } else {
+          currentChunk = testChunk;
+        }
+      }
+      
+      // Add the last chunk if it has content
+      if (currentChunk.trim()) {
+        chunks.push({
+          content: currentChunk.trim(),
+          structure_path: '',
+          chunk_index: chunkIndex,
+          page_title: 'Text File',
+          block_type: 'text_chunk'
+        });
+        chunkIndex++;
+      }
     }
-  }
-  
-  // Add the last chunk if it has content
-  if (currentChunk.trim()) {
-    let finalChunk = currentChunk.trim();
-    if (!finalChunk.endsWith('.') && !finalChunk.endsWith('!') && !finalChunk.endsWith('?')) {
-      finalChunk += '.';
-    }
-    
-    chunks.push({
-      content: finalChunk,
-      structure_path: `Chunk ${chunkIndex + 1}`,
-      chunk_index: chunkIndex,
-      page_title: 'Text File',
-      block_type: 'text_chunk'
-    });
   }
   
   return chunks;
@@ -919,7 +1082,7 @@ function processGenericJSON(jsonContent, title) {
   function processValue(value, path = '', depth = 0) {
     if (depth > 10) return; // Prevent infinite recursion
     
-    if (typeof value === 'string' && value.trim().length > 30 && isCompleteSentence(value.trim())) {
+    if (typeof value === 'string' && value.trim().length > 0) {
       const cleanText = value.trim();
       const structurePath = path ? `${title} > ${path}` : title;
       
@@ -1002,10 +1165,10 @@ app.post('/upload-source', async (req, res) => {
       console.log(`EPUB: Created ${textChunks.length} raw chunks`);
       
       chunks = textChunks
-        .filter(chunk => chunk.length > 30 && isCompleteSentence(chunk))
+        .filter(chunk => chunk.length > 0)
         .map((chunk, index) => ({
           content: chunk,
-          structure_path: `Chapter ${Math.floor(index / 5) + 1} > Chunk ${index + 1}`,
+          structure_path: '',
           chunk_index: index,
           page_title: title,
           block_type: 'epub_chunk'
@@ -1029,7 +1192,7 @@ app.post('/upload-source', async (req, res) => {
       chunks = createSimpleTextChunks(content, 1000);
     }
     
-    // 2. Insert source into database
+    // 2. Insert source into database with pending_review status
     console.log(`Database: Inserting source "${title}" into database...`);
     const { data: source, error: sourceError } = await supabase
       .from('sources')
@@ -1037,6 +1200,7 @@ app.post('/upload-source', async (req, res) => {
         title,
         author,
         source_type,
+        processing_status: 'pending_review',
         user_id: null // for testing
       })
       .select()
@@ -1045,10 +1209,80 @@ app.post('/upload-source', async (req, res) => {
     if (sourceError) throw sourceError;
     console.log(`Database: Source created with ID ${source.id}`);
     
-    let chunksCreated = 0;
-    console.log(`Processing: Starting to process ${chunks.length} chunks for embeddings...`);
+    // 3. Store chunks in pending_review state (no embeddings yet)
+    console.log(`Database: Storing ${chunks.length} chunks for review...`);
+    const chunkInserts = chunks.map((chunk, index) => ({
+      source_id: source.id,
+      content: chunk.content,
+      chunk_index: chunk.chunk_index || index,
+      structure_path: chunk.structure_path || ''
+    }));
+
+    const { data: chunkData, error: chunkError } = await supabase
+      .from('source_chunks')
+      .insert(chunkInserts)
+      .select();
+
+    if (chunkError) throw chunkError;
+    console.log(`Database: Stored ${chunkData.length} chunks for review`);
+
+    res.json({
+      message: 'Source uploaded, processing embeddings...',
+      source_id: source.id,
+      chunks_created: chunks.length,
+      source_type: source_type,
+      status: 'pending_review',
+      processing: 'embeddings'
+    });
+
+  } catch (error) {
+    console.error('Upload error:', error);
+    res.status(500).json({ 
+      error: 'Failed to upload source',
+      details: error.message 
+    });
+  }
+});
+
+// Complete source processing after review
+app.post('/complete-source-processing', async (req, res) => {
+  try {
+    const { source_id } = req.body;
     
-    // 3. Process each chunk for embeddings
+    if (!source_id) {
+      return res.status(400).json({ error: 'Source ID is required' });
+    }
+
+    // Get source information first
+    const { data: source, error: sourceError } = await supabase
+      .from('sources')
+      .select('title, author')
+      .eq('id', source_id)
+      .single();
+
+    if (sourceError) throw sourceError;
+    if (!source) {
+      return res.status(404).json({ error: 'Source not found' });
+    }
+
+    // Get all chunks for this source
+    const { data: chunks, error: chunksError } = await supabase
+      .from('source_chunks')
+      .select('*')
+      .eq('source_id', source_id)
+      .order('chunk_index');
+
+    if (chunksError) throw chunksError;
+    
+    if (!chunks || chunks.length === 0) {
+      return res.status(404).json({ error: 'No chunks found for review' });
+    }
+
+    console.log(`Processing: Starting to process ${chunks.length} reviewed chunks for embeddings...`);
+    
+    let chunksCreated = 0;
+    
+    // Process each chunk for embeddings
     for (let i = 0; i < chunks.length; i++) {
       const chunk = chunks[i];
       
@@ -1083,49 +1317,26 @@ app.post('/upload-source', async (req, res) => {
           ? `${chunk.structure_path} (Part ${pieceIndex + 1})`
           : chunk.structure_path;
         
-        // Classification disabled - using default values to save API costs
         console.log(`Processing chunk ${chunksCreated + 1}/${chunks.length}...`);
-        
-        // Default classification values (no API call)
-        const classification = {
-          primary_category: null,
-          secondary_category: null,
-          primary_confidence: 0.0,
-          secondary_confidence: 0.0
-        };
 
-        // Store chunk in database with default classification
-        const { data: chunkData, error: chunkError } = await supabase
+        // Update chunk content
+        const { error: updateError } = await supabase
           .from('source_chunks')
-          .insert({
-            source_id: source.id,
+          .update({ 
             content: content,
-            chunk_index: chunk.chunk_index,
-            structure_path: structurePath,
-            primary_category: classification.primary_category,
-            secondary_category: classification.secondary_category,
-            primary_confidence: classification.primary_confidence,
-            secondary_confidence: classification.secondary_confidence
+            structure_path: structurePath
           })
-          .select()
-          .single();
+          .eq('id', chunk.id);
 
-        if (chunkError) throw chunkError;
+        if (updateError) throw updateError;
         
         // Store embedding in Qdrant with retry logic
-        await uploadToQdrantWithRetry(chunkData, embedding, {
-          source_id: source.id,
-          source_title: title,
+        await uploadToQdrantWithRetry(chunk, embedding, {
+          source_id: chunk.source_id,
+          source_title: source.title,
           content: content,
           chunk_index: chunk.chunk_index,
-          structure_path: structurePath,
-          page_title: chunk.page_title,
-          block_type: chunk.block_type,
-          block_uid: chunk.block_uid || null,
-          primary_category: classification.primary_category,
-          secondary_category: classification.secondary_category,
-          primary_confidence: classification.primary_confidence,
-          secondary_confidence: classification.secondary_confidence
+          structure_path: structurePath
         });
         
         chunksCreated++;
@@ -1154,19 +1365,291 @@ app.post('/upload-source', async (req, res) => {
       }
     }
 
-    console.log(`Upload: Successfully processed ${chunksCreated} chunks for "${title}"`);
+    // Update source status to completed (only after embeddings are generated)
+    const { error: sourceUpdateError } = await supabase
+      .from('sources')
+      .update({ 
+        processing_status: 'completed'
+      })
+      .eq('id', source_id);
+
+    if (sourceUpdateError) throw sourceUpdateError;
+
+    console.log(`Upload: Successfully processed ${chunksCreated} chunks after review`);
     
     res.json({
-      message: 'Source uploaded and processed successfully',
-      source_id: source.id,
-      chunks_created: chunksCreated,
-      source_type: source_type
+      message: 'Source processing completed successfully',
+      source_id: source_id,
+      chunks_created: chunksCreated
     });
 
   } catch (error) {
-    console.error('Upload error:', error);
+    console.error('Complete processing error:', error);
     res.status(500).json({ 
-      error: 'Failed to upload source',
+      error: 'Failed to complete source processing',
+      details: error.message 
+    });
+  }
+});
+
+// Get chunks for review
+app.get('/sources/:sourceId/chunks-for-review', async (req, res) => {
+  try {
+    const { sourceId } = req.params;
+    
+    // Get source to check if it's in pending_review status
+    const { data: source, error: sourceError } = await supabase
+      .from('sources')
+      .select('processing_status')
+      .eq('id', sourceId)
+      .single();
+
+    if (sourceError) throw sourceError;
+    
+    if (source.processing_status !== 'pending_review') {
+      return res.json([]);
+    }
+    
+    const { data: chunks, error } = await supabase
+      .from('source_chunks')
+      .select('*')
+      .eq('source_id', sourceId)
+      .order('chunk_index');
+
+    if (error) throw error;
+    
+    res.json(chunks || []);
+  } catch (error) {
+    console.error('Error fetching chunks for review:', error);
+    res.status(500).json({ 
+      error: 'Failed to fetch chunks for review',
+      details: error.message 
+    });
+  }
+});
+
+// Create new chunk
+app.post('/chunks', async (req, res) => {
+  try {
+    const { source_id, content, chunk_index, structure_path, heading_level } = req.body;
+
+    const { data, error } = await supabase
+      .from('source_chunks')
+      .insert({
+        source_id,
+        content,
+        chunk_index,
+        structure_path,
+        heading_level: heading_level || 'paragraph'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    res.json(data);
+  } catch (error) {
+    console.error('Error creating chunk:', error);
+    res.status(500).json({
+      error: 'Failed to create chunk',
+      details: error.message
+    });
+  }
+});
+
+// Update chunk content
+app.put('/chunks/:chunkId', async (req, res) => {
+  try {
+    const { chunkId } = req.params;
+    const { content, structure_path, chunk_index, heading_level } = req.body;
+
+    const updateData = {
+      content,
+      structure_path,
+      chunk_index
+    };
+
+    // Add heading_level if provided
+    if (heading_level) {
+      updateData.heading_level = heading_level;
+    }
+
+    const { data, error } = await supabase
+      .from('source_chunks')
+      .update(updateData)
+      .eq('id', chunkId)
+      .select();
+
+    if (error) throw error;
+
+    res.json(data[0]);
+  } catch (error) {
+    console.error('Error updating chunk:', error);
+    res.status(500).json({
+      error: 'Failed to update chunk',
+      details: error.message
+    });
+  }
+});
+
+// Split chunk
+app.post('/chunks/:chunkId/split', async (req, res) => {
+  try {
+    const { chunkId } = req.params;
+    const { splitIndex } = req.body; // Character index where to split
+    
+    // Get the original chunk
+    const { data: originalChunk, error: fetchError } = await supabase
+      .from('source_chunks')
+      .select('*')
+      .eq('id', chunkId)
+      .single();
+
+    if (fetchError) throw fetchError;
+    
+    const content = originalChunk.content;
+    const firstPart = content.substring(0, splitIndex).trim();
+    const secondPart = content.substring(splitIndex).trim();
+    
+    // More lenient validation - allow splitting even if one part is very short
+    if (splitIndex <= 0 || splitIndex >= content.length) {
+      return res.status(400).json({ error: 'Invalid split point' });
+    }
+    
+    if (firstPart.length < 10 || secondPart.length < 10) {
+      return res.status(400).json({ error: 'Split would create parts that are too short' });
+    }
+    
+    // Update original chunk with first part
+    const { error: updateError } = await supabase
+      .from('source_chunks')
+      .update({ content: firstPart })
+      .eq('id', chunkId);
+
+    if (updateError) throw updateError;
+    
+    // Create new chunk with second part
+    // Use a high chunk_index to avoid conflicts - frontend will sort by index
+    const maxIndex = originalChunk.chunk_index + 1000;
+    const { data: newChunk, error: insertError } = await supabase
+      .from('source_chunks')
+      .insert({
+        source_id: originalChunk.source_id,
+        content: secondPart,
+        chunk_index: maxIndex,
+        structure_path: originalChunk.structure_path,
+      })
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+    
+    res.json({ 
+      originalChunk: { ...originalChunk, content: firstPart },
+      newChunk 
+    });
+  } catch (error) {
+    console.error('Error splitting chunk:', error);
+    res.status(500).json({ 
+      error: 'Failed to split chunk',
+      details: error.message 
+    });
+  }
+});
+
+// Merge chunks
+app.post('/chunks/merge', async (req, res) => {
+  try {
+    const { chunkIds } = req.body; // Array of chunk IDs to merge
+    
+    if (!chunkIds || chunkIds.length < 2) {
+      return res.status(400).json({ error: 'At least 2 chunks required for merge' });
+    }
+    
+    // Get all chunks to merge
+    const { data: chunks, error: fetchError } = await supabase
+      .from('source_chunks')
+      .select('*')
+      .in('id', chunkIds)
+      .order('chunk_index');
+
+    if (fetchError) throw fetchError;
+    
+    if (chunks.length !== chunkIds.length) {
+      return res.status(400).json({ error: 'Some chunks not found' });
+    }
+    
+    // Merge content
+    const mergedContent = chunks.map(chunk => chunk.content).join(' ');
+    const firstChunk = chunks[0];
+    
+    // Update first chunk with merged content
+    const { data: updatedChunk, error: updateError } = await supabase
+      .from('source_chunks')
+      .update({ content: mergedContent })
+      .eq('id', firstChunk.id)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+    
+    // Delete other chunks
+    const { error: deleteError } = await supabase
+      .from('source_chunks')
+      .delete()
+      .in('id', chunkIds.slice(1));
+
+    if (deleteError) throw deleteError;
+    
+    // Reindex remaining chunks
+    const { data: subsequentChunks, error: fetchMergeError } = await supabase
+      .from('source_chunks')
+      .select('id, chunk_index')
+      .eq('source_id', firstChunk.source_id)
+      .gt('chunk_index', firstChunk.chunk_index)
+      .order('chunk_index');
+
+    if (fetchMergeError) throw fetchMergeError;
+
+    // Update each subsequent chunk's index
+    for (const chunk of subsequentChunks) {
+      const { error: updateError } = await supabase
+        .from('source_chunks')
+        .update({ chunk_index: chunk.chunk_index - 1 })
+        .eq('id', chunk.id);
+      
+      if (updateError) throw updateError;
+    }
+    
+    res.json({ mergedChunk: updatedChunk });
+  } catch (error) {
+    console.error('Error merging chunks:', error);
+    res.status(500).json({ 
+      error: 'Failed to merge chunks',
+      details: error.message 
+    });
+  }
+});
+
+// Delete chunk
+app.delete('/chunks/:chunkId', async (req, res) => {
+  try {
+    const { chunkId } = req.params;
+    
+    // Simply delete the chunk - no reindexing needed
+    // The frontend will handle the display order
+    const { error: deleteError } = await supabase
+      .from('source_chunks')
+      .delete()
+      .eq('id', chunkId);
+
+    if (deleteError) throw deleteError;
+    
+    res.json({ message: 'Chunk deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting chunk:', error);
+    res.status(500).json({ 
+      error: 'Failed to delete chunk',
       details: error.message 
     });
   }
@@ -1224,6 +1707,8 @@ app.delete('/sources/:id', async (req, res) => {
     // 2. Delete embeddings from Qdrant using filter (more reliable than individual IDs)
     if (chunks && chunks.length > 0) {
       try {
+        console.log(`Deleting ${chunks.length} embeddings from Qdrant for source ${sourceId}...`);
+        
         // Use filter to delete all points with this source_id
         const deleteResult = await qdrant.delete('documents', {
           wait: true,
@@ -1243,9 +1728,43 @@ app.delete('/sources/:id', async (req, res) => {
         console.log(`Successfully deleted embeddings for source ${sourceId} from Qdrant`);
       } catch (qdrantError) {
         console.error('Error deleting from Qdrant:', qdrantError);
-        // Log but continue with database deletion - don't fail the entire operation
-        console.log('Continuing with database cleanup despite Qdrant error...');
+        
+        // If it's an index error, try to create the index and retry
+        if (qdrantError.message && qdrantError.message.includes('Index required')) {
+          console.log('Creating missing source_id index and retrying...');
+          try {
+            await qdrant.createPayloadIndex('documents', {
+              field_name: 'source_id',
+              field_schema: 'keyword'
+            });
+            
+            // Retry the deletion
+            const retryResult = await qdrant.delete('documents', {
+              wait: true,
+              filter: {
+                must: [
+                  {
+                    key: "source_id",
+                    match: {
+                      value: sourceId
+                    }
+                  }
+                ]
+              }
+            });
+            console.log(`Qdrant retry delete result:`, retryResult);
+            console.log(`Successfully deleted embeddings for source ${sourceId} from Qdrant (after retry)`);
+          } catch (retryError) {
+            console.error('Retry deletion failed:', retryError);
+            console.log('Continuing with database cleanup despite Qdrant error...');
+          }
+        } else {
+          // Log but continue with database deletion - don't fail the entire operation
+          console.log('Continuing with database cleanup despite Qdrant error...');
+        }
       }
+    } else {
+      console.log('No chunks found for this source, skipping Qdrant deletion');
     }
 
     // 3. Delete chunks from database
@@ -1382,7 +1901,9 @@ app.put('/sources/:id', async (req, res) => {
 // Search endpoint
 app.post('/search', async (req, res) => {
   try {
-    const { query, limit = 5 } = req.body;
+    console.log('=== SEARCH REQUEST RECEIVED ===');
+    const { query, limit = 20 } = req.body;
+    console.log(`Search query: "${query}", limit: ${limit}`);
     
     // 1. Generate embedding for search query
     const embeddingResponse = await openai.embeddings.create({
@@ -1399,8 +1920,11 @@ app.post('/search', async (req, res) => {
       with_payload: true
     });
     
+    console.log(`Qdrant search returned ${searchResult.length} results for query: "${query}"`);
+    
     // 3. Get unique source IDs from search results
     const sourceIds = [...new Set(searchResult.map(point => point.payload.source_id))];
+    console.log(`Found ${sourceIds.length} unique source IDs:`, sourceIds);
     
     // 4. Check which sources still exist in the database
     const { data: existingSources, error: sourcesError } = await supabase
@@ -1411,11 +1935,14 @@ app.post('/search', async (req, res) => {
     if (sourcesError) throw sourcesError;
     
     const existingSourceIds = new Set(existingSources.map(source => source.id));
+    console.log(`Found ${existingSourceIds.size} existing sources in database`);
     
     // 5. Filter results to only include chunks from existing sources
     const validResults = searchResult.filter(point => 
       existingSourceIds.has(point.payload.source_id)
     ).slice(0, limit); // Limit to requested number
+    
+    console.log(`After filtering, ${validResults.length} valid results remain`);
     
     // 6. Format results
     const results = validResults.map(point => ({
@@ -1427,10 +1954,15 @@ app.post('/search', async (req, res) => {
       structure_path: point.payload.structure_path,
       page_title: point.payload.page_title,
       block_type: point.payload.block_type,
+      heading_level: point.payload.heading_level,
       primary_category: point.payload.primary_category,
       secondary_category: point.payload.secondary_category,
-      primary_confidence: point.payload.primary_confidence,
-      secondary_confidence: point.payload.secondary_confidence
+      proper_nouns: point.payload.proper_nouns || [],
+      concept_tags: point.payload.concept_tags || [],
+      biblical_refs: point.payload.biblical_refs || [],
+      topic_tags: point.payload.topic_tags || [],
+      ai_curated: point.payload.ai_curated || false,
+      curation_timestamp: point.payload.curation_timestamp
     }));
 
     res.json(results);
@@ -1444,97 +1976,20 @@ app.post('/search', async (req, res) => {
   }
 });
 
-// Search with knowledge category filtering
-app.post('/search-filtered', async (req, res) => {
-  try {
-    const { query, limit = 5, primary_category, secondary_category, min_confidence = 0.3 } = req.body;
-    
-    // 1. Generate embedding for search query
-    const embeddingResponse = await openai.embeddings.create({
-      model: "text-embedding-3-small",
-      input: query,
-    });
-    
-    const queryEmbedding = embeddingResponse.data[0].embedding;
-    
-    // 2. Search similar vectors in Qdrant (without filter for now)
-    // Note: Qdrant filtering requires indexes that may not be set up
-    // We'll filter results after retrieval instead
-    const searchResult = await qdrant.search('documents', {
-      vector: queryEmbedding,
-      limit: limit * 10, // Get many more results to filter from for better category matching
-      with_payload: true
-    });
-    
-    // 3. Get unique source IDs from search results
-    const sourceIds = [...new Set(searchResult.map(point => point.payload.source_id))];
-    
-    // 4. Check which sources still exist in the database
-    const { data: existingSources, error: sourcesError } = await supabase
-      .from('sources')
-      .select('id')
-      .in('id', sourceIds);
-    
-    if (sourcesError) throw sourcesError;
-    
-    const existingSourceIds = new Set(existingSources.map(source => source.id));
-    
-    // 5. Filter results to only include chunks from existing sources
-    const validSearchResults = searchResult.filter(point => 
-      existingSourceIds.has(point.payload.source_id)
-    );
-    
-    // 6. Format results
-    let results = validSearchResults.map(point => ({
-      score: point.score,
-      content: point.payload.content,
-      source_title: point.payload.source_title,
-      chunk_index: point.payload.chunk_index,
-      source_id: point.payload.source_id,
-      structure_path: point.payload.structure_path,
-      page_title: point.payload.page_title,
-      block_type: point.payload.block_type,
-      primary_category: point.payload.primary_category,
-      secondary_category: point.payload.secondary_category,
-      primary_confidence: point.payload.primary_confidence,
-      secondary_confidence: point.payload.secondary_confidence
-    }));
 
-    // 7. Apply category and confidence filters
-    if (primary_category || secondary_category || min_confidence) {
-      results = results.filter(result => {
-        // Check primary category filter
-        if (primary_category && result.primary_category !== primary_category) {
-          return false;
-        }
-        
-        // Check secondary category filter
-        if (secondary_category && result.secondary_category !== secondary_category) {
-          return false;
-        }
-        
-        // Check minimum confidence filter
-        if (min_confidence && result.primary_confidence < min_confidence) {
-          return false;
-        }
-        
-        return true;
-      });
-    }
 
-    // 8. Limit results to requested amount
-    results = results.slice(0, limit);
+// BM25 scoring variables
 
-    res.json(results);
 
-  } catch (error) {
-    console.error('Filtered search error:', error);
-    res.status(500).json({ 
-      error: 'Filtered search failed',
-      details: error.message 
-    });
-  }
-});
+
+
+
+
+// Analyze query characteristics to determine optimal weighting
+
+
+
+
 
 // ===== TEXT SEARCH HELPER FUNCTIONS =====
 
@@ -1644,7 +2099,7 @@ function escapeRegExp(string) {
 // Text search endpoint (literal text search with operators)
 app.post('/text-search', async (req, res) => {
   try {
-    const { query, limit = 10 } = req.body;
+    const { query, limit = 20 } = req.body;
     
     if (!query || query.trim().length === 0) {
       return res.json([]);
@@ -1653,13 +2108,39 @@ app.post('/text-search', async (req, res) => {
     // Parse the search query for operators
     const searchTerms = parseTextSearchQuery(query);
     
-    // Get all chunks from database
-    const { data: chunks, error } = await supabase
+    // Get all chunks from database including AI curation fields
+    let { data: chunks, error } = await supabase
       .from('source_chunks')
-      .select('*')
+      .select('id, content, source_id, chunk_index, structure_path, page_title, block_type, heading_level, primary_category, secondary_category, proper_nouns, concept_tags, biblical_refs, topic_tags, ai_curated, curation_timestamp')
       .order('chunk_index', { ascending: true });
     
-    if (error) throw error;
+    // If that fails due to missing columns, try with basic columns only
+    if (error && error.message && error.message.includes('does not exist')) {
+      console.log('Missing columns detected in text search, falling back to basic schema...');
+      const basicResult = await supabase
+        .from('source_chunks')
+        .select('id, content, source_id, chunk_index, structure_path')
+        .order('chunk_index', { ascending: true });
+      
+      if (basicResult.error) throw basicResult.error;
+      
+      chunks = basicResult.data.map(chunk => ({
+        ...chunk,
+        page_title: '', // Default value
+        block_type: 'text', // Default value
+        heading_level: 'paragraph',
+        primary_category: null,
+        secondary_category: null,
+        proper_nouns: [],
+        concept_tags: [],
+        biblical_refs: [],
+        topic_tags: [],
+        ai_curated: false,
+        curation_timestamp: null
+      }));
+    } else if (error) {
+      throw error;
+    }
     
     // Get source information for each chunk
     const sourceIds = [...new Set(chunks.map(chunk => chunk.source_id))];
@@ -1693,10 +2174,15 @@ app.post('/text-search', async (req, res) => {
         structure_path: chunk.structure_path,
         page_title: chunk.page_title,
         block_type: chunk.block_type,
+        heading_level: chunk.heading_level || 'paragraph',
         primary_category: chunk.primary_category,
         secondary_category: chunk.secondary_category,
-        primary_confidence: chunk.primary_confidence,
-        secondary_confidence: chunk.secondary_confidence
+        proper_nouns: chunk.proper_nouns || [],
+        concept_tags: chunk.concept_tags || [],
+        biblical_refs: chunk.biblical_refs || [],
+        topic_tags: chunk.topic_tags || [],
+        ai_curated: chunk.ai_curated || false,
+        curation_timestamp: chunk.curation_timestamp
       };
     });
     
@@ -1714,126 +2200,6 @@ app.post('/text-search', async (req, res) => {
   }
 });
 
-// Re-classify all chunks for a source
-app.post('/sources/:id/reclassify', async (req, res) => {
-  try {
-    const sourceId = req.params.id;
-    
-    // Get all chunks for this source
-    const { data: chunks, error: chunksError } = await supabase
-      .from('source_chunks')
-      .select('*')
-      .eq('source_id', sourceId);
-    
-    if (chunksError) throw chunksError;
-    
-    if (!chunks || chunks.length === 0) {
-      return res.json({ message: 'No chunks found for this source' });
-    }
-    
-    console.log(`Re-classifying ${chunks.length} chunks for source ${sourceId}...`);
-    
-    let reclassified = 0;
-    let errors = 0;
-    
-    for (const chunk of chunks) {
-      try {
-        console.log(`Skipping re-classification for chunk ${chunk.chunk_index} (classification disabled)...`);
-        
-        // Classification disabled - no API calls
-        reclassified++;
-        console.log(`✓ Skipped: Classification disabled to save API costs`);
-        
-      } catch (error) {
-        console.error(`Error re-classifying chunk ${chunk.chunk_index}:`, error);
-        errors++;
-      }
-    }
-    
-    res.json({
-      message: `Re-classification skipped (classification disabled to save API costs)`,
-      total_chunks: chunks.length,
-      reclassified: reclassified,
-      errors: errors
-    });
-    
-  } catch (error) {
-    console.error('Re-classification error:', error);
-    res.status(500).json({ 
-      error: 'Re-classification skipped (classification disabled)',
-      details: error.message 
-    });
-  }
-});
-
-// Get knowledge category statistics
-app.get('/knowledge-stats', async (req, res) => {
-  try {
-    const { data: stats, error } = await supabase
-      .from('source_chunks')
-      .select('primary_category, secondary_category, primary_confidence, secondary_confidence');
-    
-    if (error) throw error;
-    
-    // Calculate statistics
-    const categoryCounts = {};
-    const confidenceStats = {};
-    
-    stats.forEach(chunk => {
-      // Primary category counts
-      if (chunk.primary_category) {
-        categoryCounts[chunk.primary_category] = (categoryCounts[chunk.primary_category] || 0) + 1;
-      }
-      
-      // Secondary category counts
-      if (chunk.secondary_category) {
-        categoryCounts[`${chunk.secondary_category} (secondary)`] = (categoryCounts[`${chunk.secondary_category} (secondary)`] || 0) + 1;
-      }
-      
-      // Confidence statistics
-      if (chunk.primary_confidence !== null) {
-        if (!confidenceStats.primary) {
-          confidenceStats.primary = { sum: 0, count: 0, min: 1, max: 0 };
-        }
-        confidenceStats.primary.sum += chunk.primary_confidence;
-        confidenceStats.primary.count++;
-        confidenceStats.primary.min = Math.min(confidenceStats.primary.min, chunk.primary_confidence);
-        confidenceStats.primary.max = Math.max(confidenceStats.primary.max, chunk.primary_confidence);
-      }
-      
-      if (chunk.secondary_confidence !== null) {
-        if (!confidenceStats.secondary) {
-          confidenceStats.secondary = { sum: 0, count: 0, min: 1, max: 0 };
-        }
-        confidenceStats.secondary.sum += chunk.secondary_confidence;
-        confidenceStats.secondary.count++;
-        confidenceStats.secondary.min = Math.min(confidenceStats.secondary.min, chunk.secondary_confidence);
-        confidenceStats.secondary.max = Math.max(confidenceStats.secondary.max, chunk.secondary_confidence);
-      }
-    });
-    
-    // Calculate averages
-    if (confidenceStats.primary) {
-      confidenceStats.primary.avg = confidenceStats.primary.sum / confidenceStats.primary.count;
-    }
-    if (confidenceStats.secondary) {
-      confidenceStats.secondary.avg = confidenceStats.secondary.sum / confidenceStats.secondary.count;
-    }
-    
-    res.json({
-      total_chunks: stats.length,
-      category_counts: categoryCounts,
-      confidence_stats: confidenceStats
-    });
-    
-  } catch (error) {
-    console.error('Knowledge stats error:', error);
-    res.status(500).json({ 
-      error: 'Failed to get knowledge statistics',
-      details: error.message 
-    });
-  }
-});
 
 // Clean up orphaned chunks (chunks without corresponding sources)
 app.post('/cleanup-orphaned-chunks', async (req, res) => {
@@ -2023,30 +2389,8 @@ async function uploadToQdrantWithRetry(chunkData, embedding, payload, maxRetries
   }
 }
 
-// Initialize NLTK sentence tokenizer
-let sentenceTokenizer = null;
-async function initializeNLTK() {
-  try {
-    // Download required NLTK data
-    await nltk.download('punkt', { quiet: true });
-    sentenceTokenizer = new nltk.PunktSentenceTokenizer();
-  } catch (error) {
-    console.warn('NLTK initialization failed, falling back to regex splitting:', error.message);
-    sentenceTokenizer = null;
-  }
-}
-
-// Sophisticated sentence splitting using NLTK with regex fallback
+// Simple sentence splitting using regex
 function splitIntoSentences(text) {
-  if (sentenceTokenizer) {
-    try {
-      return sentenceTokenizer.tokenize(text);
-    } catch (error) {
-      console.warn('NLTK sentence splitting failed, using regex fallback:', error.message);
-    }
-  }
-  
-  // Fallback to regex-based sentence splitting
   return text.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
 }
 
@@ -2171,6 +2515,27 @@ async function initializeQdrant() {
       });
       console.log('Created Qdrant collection: documents');
     }
+    
+    // Ensure source_id index exists for filtering
+    try {
+      const collectionInfo = await qdrant.getCollection('documents');
+      const hasSourceIdIndex = collectionInfo.payload_schema && 
+        collectionInfo.payload_schema.source_id;
+      
+      if (!hasSourceIdIndex) {
+        console.log('Creating source_id index for filtering...');
+        await qdrant.createPayloadIndex('documents', {
+          field_name: 'source_id',
+          field_schema: 'keyword'
+        });
+        console.log('Created source_id index successfully');
+      } else {
+        console.log('source_id index already exists');
+      }
+    } catch (indexError) {
+      console.warn('Could not create source_id index:', indexError.message);
+      // Continue without failing - the index might already exist
+    }
   } catch (error) {
     console.error('Failed to initialize Qdrant:', error);
   }
@@ -2283,6 +2648,50 @@ app.delete('/projects/:id', async (req, res) => {
   }
 });
 
+// Delete individual note (chunk)
+app.delete('/delete-note', async (req, res) => {
+  try {
+    const { source_id, chunk_index } = req.body;
+    
+    if (!source_id || chunk_index === undefined) {
+      return res.status(400).json({ error: 'Source ID and chunk index are required' });
+    }
+
+    // Delete from database
+    const { error: dbError } = await supabase
+      .from('source_chunks')
+      .delete()
+      .eq('source_id', source_id)
+      .eq('chunk_index', chunk_index);
+
+    if (dbError) throw dbError;
+
+    // Delete from Qdrant
+    try {
+      await qdrantClient.delete('source_chunks', {
+        filter: {
+          must: [
+            { key: 'source_id', match: { value: source_id } },
+            { key: 'chunk_index', match: { value: chunk_index } }
+          ]
+        }
+      });
+    } catch (qdrantError) {
+      console.warn('Warning: Could not delete from Qdrant:', qdrantError.message);
+      // Don't fail the request if Qdrant deletion fails
+    }
+
+    res.json({ 
+      message: 'Note deleted successfully', 
+      source_id, 
+      chunk_index 
+    });
+  } catch (error) {
+    console.error('Error deleting note:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Get a specific project
 app.get('/projects/:id', async (req, res) => {
   try {
@@ -2314,7 +2723,6 @@ app.get('/projects/:id', async (req, res) => {
 async function initializeServices() {
   try {
     await initializeQdrant();
-    await initializeNLTK();
     console.log('All services initialized successfully');
   } catch (error) {
     console.error('Error initializing services:', error);
