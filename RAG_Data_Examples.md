@@ -162,29 +162,6 @@ Embeddings are stored in Qdrant with metadata:
 ]
 ```
 
-## 8. Knowledge Classification (Currently Disabled)
-
-Our system includes a Knowledge Elements Framework for categorizing chunks:
-
-### Categories
-- **Semantic**: Meaning, concepts, definitions
-- **Logical**: Arguments, evidence, reasoning
-- **Personal**: First-person reflections, emotions
-- **Narrative**: Historical events, chronological accounts
-- **Practical**: Strategies, methods, actionable advice
-- **Symbolic**: Metaphors, themes, figurative language
-- **Reference**: Citations, sources, authority
-
-### Classification Example (When Enabled)
-```json
-{
-  "primary_category": "Semantic",
-  "primary_confidence": 0.85,
-  "secondary_category": "Practical",
-  "secondary_confidence": 0.65
-}
-```
-
 ## 9. Database Schema
 
 ### Sources Table
