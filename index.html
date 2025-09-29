@@ -2279,10 +2279,9 @@
             }
         }
         
-        // ===== QUERY ENHANCEMENT FUNCTIONS =====
         
         function getEditorContext() {
-            // Get context from the editor for query enhancement
+            // Get context from the editor
             const editor = document.getElementById('editor');
             if (!editor) return '';
             
@@ -2368,7 +2367,6 @@
             }
         }
         
-        // Hybrid search function (combines vector and BM25)
         
         // Manual search function (when auto-search is disabled)
         async function performManualSearch() {
@@ -4212,7 +4210,6 @@
         window.deleteSource = deleteSource;
         window.performSearch = performSearch;
         window.performAutoSearch = performAutoSearch;
-        window.performHybridSearch = performHybridSearch;
         window.loadMoreResults = loadMoreResults;
         window.applyFilters = applyFilters;
         window.toggleSaveNote = toggleSaveNote;
@@ -4221,7 +4218,6 @@
         window.createNoteCard = createNoteCard;
         window.handleEditorInput = handleEditorInput;
         window.toggleAutoSearch = toggleAutoSearch;
-        window.toggleQueryEnhancement = toggleQueryEnhancement;
         window.toggleSearchMode = toggleSearchMode;
         window.showCreateProjectModal = showCreateProjectModal;
         window.hideCreateProjectModal = hideCreateProjectModal;

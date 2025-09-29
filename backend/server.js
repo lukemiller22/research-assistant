@@ -1978,7 +1978,6 @@ app.post('/search', async (req, res) => {
 
 
 
-// BM25 scoring variables
 
 
 
