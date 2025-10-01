@@ -9,38 +9,179 @@ const OpenAI = require('openai');
 const pdfParse = require('pdf-parse');
 const AdmZip = require('adm-zip');
 
-// ===== SIMPLE PDF PROCESSING FUNCTIONS =====
+// ===== INTELLIGENT CHUNKING WITH GPT-4O =====
 
-// Remove footnote markers and content from PDF text
-function removeFootnotes(text) {
-  return text
-    // Remove numbered footnote markers in text: [1], [2], [3], etc.
-    .replace(/\[\d+\]/g, '')
-    // Remove superscript footnote numbers: ¹, ², ³, ⁴, ⁵, ⁶, ⁷, ⁸, ⁹, ⁰
-    .replace(/[¹²³⁴⁵⁶⁷⁸⁹⁰]/g, '')
-    // Remove symbol footnote markers: *, †, ‡, §, ¶
-    .replace(/[*†‡§¶]/g, '')
-    // Clean up any double spaces that might result from removals
-    .replace(/\s+/g, ' ')
-    .trim();
+// Intelligent chunking function using GPT-4o for cleaning and semantic chunking
+async function intelligentChunkWithGPT4o(rawText, sourceType, title) {
+  const maxRetries = 3;
+  const timeoutMs = 5 * 60 * 1000; // 5 minutes
+  
+  // Create the prompt for GPT-4o
+  const prompt = `You are an expert at cleaning and chunking text content for a research assistant system. 
+
+TASK: Clean and chunk the following ${sourceType.toUpperCase()} content into semantic chunks.
+
+CLEANING REQUIREMENTS:
+- Remove headers, footers, page numbers, footnote markers
+- Remove table of contents with page numbers
+- Remove bibliography formatting artifacts
+- Preserve chapter/section titles and detect hierarchy
+- Clean up formatting artifacts while preserving meaning
+
+CHUNKING REQUIREMENTS:
+- Chunk by natural semantic units (paragraphs or coherent passages)
+- Each chunk should be 200-800 words ideally
+- Filter out chunks < 50 characters
+- Preserve logical flow and context
+
+OUTPUT FORMAT:
+Return a JSON array of chunks with this exact structure:
+[
+  {
+    "content": "cleaned paragraph text",
+    "chapter_number": 1,
+    "chapter_title": "Chapter Title"
+  }
+]
+
+If chapter information is not detectable, use null for chapter_number and chapter_title.
+
+CONTENT TO PROCESS:
+${rawText}
+
+Return only the JSON array, no other text.`;
+
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`GPT-4o chunking attempt ${attempt}/${maxRetries} for ${sourceType} content (${rawText.length} chars)`);
+      
+      // Create timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('GPT-4o request timeout')), timeoutMs);
+      });
+      
+      // Make the API call with timeout
+      const apiCall = openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: "You are an expert at cleaning and chunking text content. Always return valid JSON arrays."
+          },
+          {
+            role: "user", 
+            content: prompt
+          }
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 8000,
+        temperature: 0.1
+      });
+      
+      const response = await Promise.race([apiCall, timeoutPromise]);
+      
+      // Parse the response
+      const responseText = response.choices[0].message.content;
+      console.log(`GPT-4o response length: ${responseText.length} characters`);
+      
+      // Parse JSON response
+      let chunks;
+      try {
+        const parsed = JSON.parse(responseText);
+        chunks = Array.isArray(parsed) ? parsed : [parsed];
+      } catch (parseError) {
+        // Try to extract JSON from response if it's wrapped in other text
+        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+        if (jsonMatch) {
+          chunks = JSON.parse(jsonMatch[0]);
+        } else {
+          throw new Error(`Failed to parse JSON response: ${parseError.message}`);
+        }
+      }
+      
+      // Validate and format chunks
+      const formattedChunks = chunks
+        .filter(chunk => chunk && chunk.content && chunk.content.trim().length >= 50)
+        .map((chunk, index) => ({
+          content: chunk.content.trim(),
+          structure_path: chunk.chapter_title ? 
+            `Chapter ${chunk.chapter_number || 'Unknown'} > ${chunk.chapter_title}` : 
+            '',
+          chunk_index: index,
+          page_title: title,
+          block_type: `${sourceType}_chunk`
+        }));
+      
+      // Log token usage and cost estimate
+      const tokensUsed = response.usage?.total_tokens || 0;
+      const estimatedCost = (tokensUsed / 1000) * 0.03; // Rough estimate for GPT-4o
+      console.log(`GPT-4o usage: ${tokensUsed} tokens, estimated cost: $${estimatedCost.toFixed(4)}`);
+      console.log(`Created ${formattedChunks.length} chunks from ${sourceType} content`);
+      
+      // Log first 3 chunks for verification
+      console.log('First 3 chunks preview:');
+      formattedChunks.slice(0, 3).forEach((chunk, i) => {
+        console.log(`Chunk ${i + 1}: ${chunk.content.substring(0, 100)}...`);
+      });
+      
+      return formattedChunks;
+      
+    } catch (error) {
+      console.error(`GPT-4o chunking attempt ${attempt} failed:`, error.message);
+      
+      if (attempt === maxRetries) {
+        console.log('All GPT-4o attempts failed, falling back to simple paragraph chunking');
+        return fallbackToSimpleChunking(rawText, sourceType, title);
+      }
+      
+      // Exponential backoff
+      const delay = Math.pow(2, attempt) * 1000;
+      console.log(`Retrying in ${delay/1000} seconds...`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
 }
+
+// Fallback chunking function when GPT-4o fails
+function fallbackToSimpleChunking(rawText, sourceType, title) {
+  console.log(`Using fallback chunking for ${sourceType} content`);
+  
+  // Simple paragraph-based chunking as fallback
+  const paragraphs = rawText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
+  const chunks = [];
+  
+  paragraphs.forEach((paragraph, index) => {
+    const trimmedParagraph = paragraph.trim();
+    if (trimmedParagraph.length >= 50) {
+    chunks.push({
+        content: trimmedParagraph,
+      structure_path: '',
+        chunk_index: index,
+        page_title: title,
+        block_type: `${sourceType}_chunk`
+    });
+  }
+  });
+  
+  console.log(`Fallback created ${chunks.length} chunks`);
+  return chunks;
+}
+
+// ===== SIMPLE PDF PROCESSING FUNCTIONS =====
 
 async function processPDF(buffer) {
   try {
     const data = await pdfParse(buffer);
     
-    // Return raw text with basic cleanup and footnote removal
+    // Return raw text with basic cleanup (GPT-4o will handle advanced cleaning)
     const cleanedText = data.text
       .replace(/\r\n/g, '\n')
       .replace(/\r/g, '\n')
       .replace(/\s+/g, ' ')
       .trim();
     
-    // Remove footnote markers
-    const textWithoutFootnotes = removeFootnotes(cleanedText);
-    
     return {
-      content: textWithoutFootnotes,
+      content: cleanedText,
       pages: data.numpages,
       info: data.info
     };
@@ -49,64 +190,6 @@ async function processPDF(buffer) {
   }
 }
 
-// Simple chunking function that ensures chunks end with periods
-function createPDFChunks(content, minChunkSize = 500, maxChunkSize = 1000) {
-  const chunks = [];
-  let currentChunk = '';
-  let chunkIndex = 0;
-  
-  // Split content into sentences
-  const sentences = content.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
-  
-  for (const sentence of sentences) {
-    const trimmedSentence = sentence.trim();
-    
-    // Include all sentences, including short ones (headings, etc.)
-    if (trimmedSentence.length === 0) {
-      continue;
-    }
-    
-    // Check if adding this sentence would exceed max chunk size
-    const testChunk = currentChunk + (currentChunk ? ' ' : '') + trimmedSentence;
-    
-    if (testChunk.length > maxChunkSize && currentChunk.trim()) {
-      // Current chunk is ready - ensure it ends with a period
-      let finalChunk = currentChunk.trim();
-      if (!finalChunk.endsWith('.') && !finalChunk.endsWith('!') && !finalChunk.endsWith('?')) {
-        finalChunk += '.';
-      }
-      
-      chunks.push({
-        content: finalChunk,
-        structure_path: '',
-        chunk_index: chunkIndex,
-        block_type: 'pdf_chunk'
-      });
-      chunkIndex++;
-      currentChunk = trimmedSentence;
-    } else {
-      // Add sentence to current chunk
-      currentChunk = testChunk;
-    }
-  }
-  
-  // Handle the last chunk
-  if (currentChunk.trim()) {
-    let finalChunk = currentChunk.trim();
-    if (!finalChunk.endsWith('.') && !finalChunk.endsWith('!') && !finalChunk.endsWith('?')) {
-      finalChunk += '.';
-    }
-    
-    chunks.push({
-      content: finalChunk,
-      structure_path: '',
-      chunk_index: chunkIndex,
-      block_type: 'pdf_chunk'
-    });
-  }
-  
-  return chunks;
-}
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -216,31 +299,6 @@ app.get('/test-sources', async (req, res) => {
   }
 });
 
-// Test footnote removal
-app.post('/test-footnote-removal', async (req, res) => {
-  try {
-    const { text } = req.body;
-    
-    if (!text) {
-      return res.status(400).json({ error: 'Text is required' });
-    }
-    
-    const cleanedText = removeFootnotes(text);
-    
-    res.json({
-      original: text,
-      cleaned: cleanedText,
-      removed: text.length - cleanedText.length,
-      removedPercentage: Math.round(((text.length - cleanedText.length) / text.length) * 100)
-    });
-    
-  } catch (error) {
-    res.status(500).json({ 
-      message: 'Footnote removal test failed', 
-      error: error.message 
-    });
-  }
-});
 
 // Clear Qdrant data for a specific source
 app.post('/clear-source-vectors', async (req, res) => {
@@ -877,95 +935,38 @@ function splitLongContent(content, maxTokens = 8000) {
     return [content];
   }
   
-  // Use paragraph-based chunking with character-based limits
+  // Simple character-based splitting for long content
   // Convert token limit to character estimate (roughly 4 chars per token)
   const maxChars = Math.floor(maxTokens * 4);
-  return splitIntoParagraphChunks(content, maxChars);
+  const chunks = [];
+  let start = 0;
+  
+  while (start < content.length) {
+    let end = start + maxChars;
+    
+    // Try to break at sentence boundary
+    if (end < content.length) {
+      const lastSentenceEnd = content.lastIndexOf('.', end);
+      const lastQuestionEnd = content.lastIndexOf('?', end);
+      const lastExclamationEnd = content.lastIndexOf('!', end);
+      
+      const lastEnd = Math.max(lastSentenceEnd, lastQuestionEnd, lastExclamationEnd);
+      if (lastEnd > start + maxChars * 0.5) { // Only use sentence break if it's not too far back
+        end = lastEnd + 1;
+      }
+    }
+    
+    chunks.push(content.substring(start, end).trim());
+    start = end;
+  }
+  
+  return chunks.filter(chunk => chunk.length > 0);
 }
 
 // ===== PDF PROCESSING FUNCTIONS =====
 
 // ===== TEXT PROCESSING FUNCTIONS =====
 
-function createSimpleTextChunks(text, maxChunkSize = 1000) {
-  const chunks = [];
-  let chunkIndex = 0;
-  
-  // Split content into paragraphs and lines (preserve headings)
-  const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
-  
-  for (const paragraph of paragraphs) {
-    const trimmedParagraph = paragraph.trim();
-    
-    if (trimmedParagraph.length === 0) {
-      continue;
-    }
-    
-    // If paragraph is short (likely a heading), create a separate chunk
-    if (trimmedParagraph.length <= 100 && !trimmedParagraph.includes('.')) {
-      chunks.push({
-        content: trimmedParagraph,
-        structure_path: '',
-        chunk_index: chunkIndex,
-        page_title: 'Text File',
-        block_type: 'text_chunk'
-      });
-      chunkIndex++;
-    } else if (trimmedParagraph.length <= maxChunkSize) {
-      // Paragraph fits in one chunk
-      chunks.push({
-        content: trimmedParagraph,
-        structure_path: '',
-        chunk_index: chunkIndex,
-        page_title: 'Text File',
-        block_type: 'text_chunk'
-      });
-      chunkIndex++;
-    } else {
-      // Split long paragraph into sentences
-      const sentences = trimmedParagraph.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
-      let currentChunk = '';
-      
-      for (const sentence of sentences) {
-        const trimmedSentence = sentence.trim();
-        
-        if (trimmedSentence.length === 0) {
-          continue;
-        }
-        
-        const testChunk = currentChunk + (currentChunk ? ' ' : '') + trimmedSentence;
-        
-        if (testChunk.length > maxChunkSize && currentChunk.trim()) {
-          chunks.push({
-            content: currentChunk.trim(),
-            structure_path: '',
-            chunk_index: chunkIndex,
-            page_title: 'Text File',
-            block_type: 'text_chunk'
-          });
-          chunkIndex++;
-          currentChunk = trimmedSentence;
-        } else {
-          currentChunk = testChunk;
-        }
-      }
-      
-      // Add the last chunk if it has content
-      if (currentChunk.trim()) {
-        chunks.push({
-          content: currentChunk.trim(),
-          structure_path: '',
-          chunk_index: chunkIndex,
-          page_title: 'Text File',
-          block_type: 'text_chunk'
-        });
-        chunkIndex++;
-      }
-    }
-  }
-  
-  return chunks;
-}
 
 // ===== EPUB PROCESSING FUNCTIONS =====
 
@@ -1127,7 +1128,7 @@ app.post('/upload-source', async (req, res) => {
     let chunks;
     
     if (source_type === 'pdf') {
-      // Handle PDF files with simple chunking
+      // Handle PDF files with intelligent chunking
       if (!file_buffer) {
         throw new Error('PDF file buffer is required');
       }
@@ -1138,14 +1139,11 @@ app.post('/upload-source', async (req, res) => {
       console.log(`PDF processed: ${pdfData.pages} pages, ${processedContent.length} characters`);
       console.log(`First 200 chars: ${processedContent.substring(0, 200)}...`);
       
-      // Create chunks from PDF content using sentence-based chunking
-      chunks = createPDFChunks(processedContent, 500, 1000);
-      
-      console.log(`PDF chunking: Created ${chunks.length} chunks (500-1000 chars each, ending with periods)`);
-      console.log(`First chunk:`, chunks[0]?.content?.substring(0, 200) + '...');
+      // Create chunks from PDF content using GPT-4o intelligent chunking
+      chunks = await intelligentChunkWithGPT4o(processedContent, 'pdf', title);
       
     } else if (source_type === 'epub') {
-      // Handle EPUB files
+      // Handle EPUB files with intelligent chunking
       if (!file_buffer) {
         throw new Error('EPUB file buffer is required');
       }
@@ -1159,37 +1157,23 @@ app.post('/upload-source', async (req, res) => {
     
     console.log(`EPUB processing complete. Content length: ${processedContent.length} characters`);
       
-      // Create chunks from EPUB content using paragraph-based chunking
-      console.log(`EPUB: Creating text chunks...`);
-      const textChunks = splitIntoParagraphChunks(processedContent, 1000);
-      console.log(`EPUB: Created ${textChunks.length} raw chunks`);
-      
-      chunks = textChunks
-        .filter(chunk => chunk.length > 0)
-        .map((chunk, index) => ({
-          content: chunk,
-          structure_path: '',
-          chunk_index: index,
-          page_title: title,
-          block_type: 'epub_chunk'
-        }));
-      
-      console.log(`EPUB: Filtered to ${chunks.length} valid chunks (${Math.round((chunks.length / textChunks.length) * 100)}% kept)`);
+      // Create chunks from EPUB content using GPT-4o intelligent chunking
+      chunks = await intelligentChunkWithGPT4o(processedContent, 'epub', title);
       
     } else if (source_type === 'json') {
-      // Handle generic JSON files
+      // Handle generic JSON files (keep existing logic)
       processedContent = content;
       chunks = processGenericJSON(content, title);
       
     } else if (source_type === 'roam') {
-      // Handle Roam Research exports
+      // Handle Roam Research exports (keep existing logic)
       processedContent = content;
       chunks = parseRoamJSON(content);
       
     } else {
-      // Handle text files with simple character-based chunking
+      // Handle text files with intelligent chunking
       processedContent = content;
-      chunks = createSimpleTextChunks(content, 1000);
+      chunks = await intelligentChunkWithGPT4o(content, 'text', title);
     }
     
     // 2. Insert source into database with pending_review status
@@ -2438,69 +2422,7 @@ function detectParagraphBreaks(text) {
   return paragraphs.length > 0 ? paragraphs : [text];
 }
 
-// New paragraph-based chunking function
-function splitIntoParagraphChunks(text, maxChunkSize = 1000) {
-  const paragraphs = detectParagraphBreaks(text);
-  const chunks = [];
-  
-  for (const paragraph of paragraphs) {
-    const paragraphLength = paragraph.length;
-    
-    if (paragraphLength <= maxChunkSize) {
-      // Paragraph fits in one chunk
-      chunks.push(paragraph);
-    } else if (paragraphLength <= maxChunkSize * 2) {
-      // Split paragraph in half at sentence boundary
-      const sentences = splitIntoSentences(paragraph);
-      const midPoint = Math.ceil(sentences.length / 2);
-      
-      const firstHalf = sentences.slice(0, midPoint).join(' ').trim();
-      const secondHalf = sentences.slice(midPoint).join(' ').trim();
-      
-      if (firstHalf.length > 0) chunks.push(firstHalf);
-      if (secondHalf.length > 0) chunks.push(secondHalf);
-    } else if (paragraphLength <= maxChunkSize * 3) {
-      // Split paragraph into thirds at sentence boundaries
-      const sentences = splitIntoSentences(paragraph);
-      const thirdPoint = Math.ceil(sentences.length / 3);
-      const twoThirdPoint = Math.ceil(sentences.length * 2 / 3);
-      
-      const firstThird = sentences.slice(0, thirdPoint).join(' ').trim();
-      const secondThird = sentences.slice(thirdPoint, twoThirdPoint).join(' ').trim();
-      const thirdThird = sentences.slice(twoThirdPoint).join(' ').trim();
-      
-      if (firstThird.length > 0) chunks.push(firstThird);
-      if (secondThird.length > 0) chunks.push(secondThird);
-      if (thirdThird.length > 0) chunks.push(thirdThird);
-    } else {
-      // Very long paragraph - split into multiple chunks of maxChunkSize
-      const sentences = splitIntoSentences(paragraph);
-      let currentChunk = '';
-      
-      for (const sentence of sentences) {
-        const testChunk = currentChunk + (currentChunk ? ' ' : '') + sentence;
-        
-        if (testChunk.length > maxChunkSize && currentChunk.length > 0) {
-          chunks.push(currentChunk.trim());
-          currentChunk = sentence;
-        } else {
-          currentChunk = testChunk;
-        }
-      }
-      
-      if (currentChunk.trim().length > 0) {
-        chunks.push(currentChunk.trim());
-      }
-    }
-  }
-  
-  return chunks;
-}
 
-// Legacy function for backward compatibility
-function splitIntoChunks(text, maxChunkSize) {
-  return splitIntoParagraphChunks(text, maxChunkSize);
-}
 
 // Create Qdrant collection if it doesn't exist
 async function initializeQdrant() {
