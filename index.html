@@ -3226,37 +3226,18 @@
         
         function showSavedNotesInPanel(projectNotes) {
             const sourceViewerContent = document.getElementById('source-viewer-content');
-            const project = projects.get(currentProjectId);
             
-            // Create the header
-            const header = document.createElement('div');
-            header.className = 'source-viewer-header';
-            header.innerHTML = `
-                <h3>Saved Project Notes</h3>
-                <button class="source-viewer-close" onclick="closeSourceViewer()">
-                    <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-                    </svg>
-                </button>
-            `;
+            // Clear the content area
+            sourceViewerContent.innerHTML = '';
             
-            // Create the content container
-            const content = document.createElement('div');
-            content.className = 'source-viewer-content';
-            
-            // Add each saved note
+            // Add each saved note directly to the content area
             Array.from(projectNotes).forEach(noteId => {
                 const note = allNotes.find(n => (n.source_id + '-' + n.chunk_index) === noteId);
                 if (note) {
                     const noteCard = createNoteCard(note, true, true);
-                    content.appendChild(noteCard);
+                    sourceViewerContent.appendChild(noteCard);
                 }
             });
-            
-            // Clear and populate the viewer
-            sourceViewerContent.innerHTML = '';
-            sourceViewerContent.appendChild(header);
-            sourceViewerContent.appendChild(content);
         }
         
         function closeSourceViewer() {
