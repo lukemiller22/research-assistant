@@ -2613,6 +2613,107 @@ app.delete('/delete-note', async (req, res) => {
   }
 });
 
+// Save a note to a project
+app.post('/projects/:projectId/saved-notes', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    const { noteId } = req.body;
+    
+    if (!projectId || !noteId) {
+      return res.status(400).json({ error: 'Project ID and note ID are required' });
+    }
+
+    // Parse noteId to get source_id and chunk_index
+    const [sourceId, chunkIndex] = noteId.split('-');
+    
+    if (!sourceId || chunkIndex === undefined) {
+      return res.status(400).json({ error: 'Invalid note ID format' });
+    }
+
+    // Insert into saved_notes table
+    const { error: insertError } = await supabase
+      .from('saved_notes')
+      .insert({
+        project_id: projectId,
+        source_id: sourceId,
+        chunk_index: parseInt(chunkIndex)
+      });
+
+    if (insertError) {
+      // If it's a duplicate key error, that's okay
+      if (insertError.code === '23505') {
+        return res.json({ message: 'Note already saved to project' });
+      }
+      throw insertError;
+    }
+
+    res.json({ message: 'Note saved to project successfully' });
+  } catch (error) {
+    console.error('Save note to project error:', error);
+    res.status(500).json({ error: 'Failed to save note to project' });
+  }
+});
+
+// Remove a note from a project
+app.delete('/projects/:projectId/saved-notes/:noteId', async (req, res) => {
+  try {
+    const { projectId, noteId } = req.params;
+    
+    if (!projectId || !noteId) {
+      return res.status(400).json({ error: 'Project ID and note ID are required' });
+    }
+
+    // Parse noteId to get source_id and chunk_index
+    const [sourceId, chunkIndex] = noteId.split('-');
+    
+    if (!sourceId || chunkIndex === undefined) {
+      return res.status(400).json({ error: 'Invalid note ID format' });
+    }
+
+    // Delete from saved_notes table
+    const { error: deleteError } = await supabase
+      .from('saved_notes')
+      .delete()
+      .eq('project_id', projectId)
+      .eq('source_id', sourceId)
+      .eq('chunk_index', parseInt(chunkIndex));
+
+    if (deleteError) throw deleteError;
+
+    res.json({ message: 'Note removed from project successfully' });
+  } catch (error) {
+    console.error('Remove note from project error:', error);
+    res.status(500).json({ error: 'Failed to remove note from project' });
+  }
+});
+
+// Get all saved notes for a project
+app.get('/projects/:projectId/saved-notes', async (req, res) => {
+  try {
+    const { projectId } = req.params;
+    
+    if (!projectId) {
+      return res.status(400).json({ error: 'Project ID is required' });
+    }
+
+    // Get all saved notes for this project
+    const { data: savedNotes, error } = await supabase
+      .from('saved_notes')
+      .select('source_id, chunk_index')
+      .eq('project_id', projectId);
+
+    if (error) throw error;
+
+    // Convert to noteId format
+    const noteIds = savedNotes.map(note => `${note.source_id}-${note.chunk_index}`);
+    
+    res.json(noteIds);
+  } catch (error) {
+    console.error('Get saved notes error:', error);
+    res.status(500).json({ error: 'Failed to get saved notes' });
+  }
+});
+
 // Get a specific project
 app.get('/projects/:id', async (req, res) => {
   try {

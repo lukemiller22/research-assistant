@@ -1836,6 +1836,35 @@
             }
         }
         
+        // Load saved notes from database
+        async function loadSavedNotesFromDatabase() {
+            try {
+                console.log('Loading saved notes from database...');
+                
+                // Load saved notes for each project
+                for (const [projectId, project] of projects) {
+                    const response = await fetch(`${API_BASE}/projects/${projectId}/saved-notes`);
+                    
+                    if (response.ok) {
+                        const savedNoteIds = await response.json();
+                        savedNotes.set(projectId, new Set(savedNoteIds));
+                        console.log(`Loaded ${savedNoteIds.length} saved notes for project: ${project.title}`);
+                    } else {
+                        console.warn(`Failed to load saved notes for project ${project.title}: ${response.status}`);
+                        savedNotes.set(projectId, new Set());
+                    }
+                }
+                
+                console.log('Saved notes loaded successfully');
+            } catch (error) {
+                console.error('Error loading saved notes:', error);
+                // Initialize empty saved notes for all projects
+                for (const projectId of projects.keys()) {
+                    savedNotes.set(projectId, new Set());
+                }
+            }
+        }
+
         // Initialize projects
         async function initializeProjects() {
             try {
@@ -1855,6 +1884,9 @@
                         console.log('Default project created with ID:', currentProjectId);
                     }
                 }
+                
+                // Load saved notes for all projects
+                await loadSavedNotesFromDatabase();
                 
                 // Load the current project content
                 if (currentProjectId) {
@@ -3161,7 +3193,7 @@
             }
         }
 
-        function toggleSaveNote(noteId) {
+        async function toggleSaveNote(noteId) {
             console.log('toggleSaveNote called with noteId:', noteId, 'currentProjectId:', currentProjectId);
             if (!currentProjectId) {
                 console.log('No current project selected, cannot save note');
@@ -3175,28 +3207,57 @@
             }
             
             const projectNotes = savedNotes.get(currentProjectId);
+            const isCurrentlySaved = projectNotes.has(noteId);
             
-            if (projectNotes.has(noteId)) {
-                projectNotes.delete(noteId);
-                console.log('Removed note from project:', noteId);
-            } else {
-                projectNotes.add(noteId);
-                console.log('Added note to project:', noteId);
+            try {
+                if (isCurrentlySaved) {
+                    // Remove from project
+                    const response = await fetch(`${API_BASE}/projects/${currentProjectId}/saved-notes/${noteId}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to remove note: ${response.status}`);
+                    }
+                    
+                    projectNotes.delete(noteId);
+                    console.log('Removed note from project:', noteId);
+                } else {
+                    // Add to project
+                    const response = await fetch(`${API_BASE}/projects/${currentProjectId}/saved-notes`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ noteId })
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`Failed to save note: ${response.status}`);
+                    }
+                    
+                    projectNotes.add(noteId);
+                    console.log('Added note to project:', noteId);
+                }
+                
+                // Update the button appearance
+                const button = event.target.closest('.note-action-btn');
+                const isSaved = projectNotes.has(noteId);
+                
+                button.classList.toggle('saved', isSaved);
+                button.title = isSaved ? 'Remove from project' : 'Save to project';
+                
+                // Update the icon
+                const svg = button.querySelector('svg path');
+                svg.setAttribute('d', isSaved ? 'M5 13l4 4L19 7' : 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z');
+                
+                // Update project display
+                updateProjectDisplay();
+                
+            } catch (error) {
+                console.error('Error toggling save note:', error);
+                alert('Failed to save note. Please try again.');
             }
-            
-            // Update the button appearance
-            const button = event.target.closest('.note-action-btn');
-            const isSaved = projectNotes.has(noteId);
-            
-            button.classList.toggle('saved', isSaved);
-            button.title = isSaved ? 'Remove from project' : 'Save to project';
-            
-            // Update the icon
-            const svg = button.querySelector('svg path');
-            svg.setAttribute('d', isSaved ? 'M5 13l4 4L19 7' : 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z');
-            
-            // Update project display
-            updateProjectDisplay();
             
             const project = projects.get(currentProjectId);
             console.log(`Note ${noteId} ${isSaved ? 'saved to' : 'removed from'} project: ${project?.title}`);
