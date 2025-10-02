@@ -2750,23 +2750,36 @@
         }
         
         function updateAvailableSources(notes) {
-            const sourceFilter = document.getElementById('source-filter');
-            if (sourceFilter && sourceFilter.children) {
+            const multiselectOptions = document.getElementById('multiselect-options');
+            if (multiselectOptions) {
                 availableSources.clear();
                 
                 // Clear existing options except "All Sources"
-                while (sourceFilter.children.length > 1) {
-                    sourceFilter.removeChild(sourceFilter.lastChild);
-                }
+                const existingOptions = multiselectOptions.querySelectorAll('.multiselect-option:not(:first-child)');
+                existingOptions.forEach(option => option.remove());
                 
                 // Add unique sources from the provided notes
                 notes.forEach(note => {
                     if (!availableSources.has(note.source_title)) {
                         availableSources.add(note.source_title);
-                        const option = document.createElement('option');
-                        option.value = note.source_title;
-                        option.textContent = note.source_title;
-                        sourceFilter.appendChild(option);
+                        
+                        const optionDiv = document.createElement('div');
+                        optionDiv.className = 'multiselect-option';
+                        optionDiv.setAttribute('data-value', note.source_title);
+                        
+                        const checkbox = document.createElement('input');
+                        checkbox.type = 'checkbox';
+                        checkbox.id = `option-${note.source_title.replace(/\s+/g, '-')}`;
+                        checkbox.value = note.source_title;
+                        checkbox.onchange = () => updateMultiselectDisplay();
+                        
+                        const label = document.createElement('label');
+                        label.setAttribute('for', checkbox.id);
+                        label.textContent = note.source_title;
+                        
+                        optionDiv.appendChild(checkbox);
+                        optionDiv.appendChild(label);
+                        multiselectOptions.appendChild(optionDiv);
                     }
                 });
             }
@@ -2829,9 +2842,28 @@
             }
         }
         
+        function getSelectedSources() {
+            const selectedCheckboxes = document.querySelectorAll('.multiselect-option input[type="checkbox"]:checked');
+            const selectedSources = [];
+            
+            selectedCheckboxes.forEach(checkbox => {
+                // Skip the "All Sources" checkbox
+                if (checkbox.id === 'option-all') {
+                    return;
+                }
+                
+                const label = checkbox.nextElementSibling;
+                if (label && label.textContent !== 'All Sources') {
+                    selectedSources.push(label.textContent.trim());
+                }
+            });
+            
+            return selectedSources;
+        }
+        
         function applyFilters() {
             console.log('applyFilters called');
-            const sourceFilter = document.getElementById('source-filter');
+            const sourceFilter = document.getElementById('source-filter-container');
             const projectFilter = document.getElementById('project-filter');
             
             if (!sourceFilter || !projectFilter) {
@@ -2839,14 +2871,15 @@
                 return;
             }
             
-            const sourceValue = sourceFilter.value;
+            // Get selected sources from multiselect
+            const selectedSources = getSelectedSources();
             const projectValue = projectFilter.value;
             
-            let filteredNotes = [...displayedNotes]; // Use displayedNotes instead of allNotes
+            let filteredNotes = [...allNotes]; // Use allNotes for filtering
             
             // Apply source filter
-            if (sourceValue) {
-                filteredNotes = filteredNotes.filter(note => note.source_title === sourceValue);
+            if (selectedSources.length > 0) {
+                filteredNotes = filteredNotes.filter(note => selectedSources.includes(note.source_title));
             }
             
             // Apply project filter
