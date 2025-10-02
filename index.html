@@ -2631,7 +2631,7 @@
                 currentSearchQuery = query;
                 
                 await executeSearch(query, searchLimit, searchOffset, true);
-            }, 500); // 500ms debounce for manual typing
+            }, 1000); // 1 second debounce for manual typing
         }
         
         async function executeSearch(query, limit, offset = 0, isNewSearch = false) {
@@ -3226,7 +3226,7 @@
         
         function showSavedNotesInPanel(projectNotes) {
             const sourceViewerContent = document.getElementById('source-viewer-content');
-            const project = projects.find(p => p.id === currentProjectId);
+            const project = projects.get(currentProjectId);
             
             sourceViewerContent.innerHTML = `
                 <div class="source-viewer-header">
