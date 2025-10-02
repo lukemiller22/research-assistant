@@ -3264,7 +3264,8 @@
             }
             
             const project = projects.get(currentProjectId);
-            console.log(`Note ${noteId} ${isSaved ? 'saved to' : 'removed from'} project: ${project?.title}`);
+            const finalIsSaved = savedNotes.get(currentProjectId)?.has(noteId) || false;
+            console.log(`Note ${noteId} ${finalIsSaved ? 'saved to' : 'removed from'} project: ${project?.title}`);
         }
         
         function showSourceNotes(sourceTitle) {
