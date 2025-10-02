@@ -1523,7 +1523,7 @@
             <h2 class="review-title" id="review-title">AI Curation Status</h2>
             <div class="review-actions">
                 <button class="review-btn secondary" onclick="closeReviewInterface()">Close</button>
-                <button class="review-btn primary" onclick="completeAICuration()">Complete Processing</button>
+                <button class="review-btn primary" onclick="completeReview()">Complete Processing</button>
             </div>
         </div>
         <div class="review-content" id="review-content">
@@ -5124,7 +5124,6 @@
         }
         
         // Make functions globally available
-        window.startChunkReview = startChunkReview;
         window.closeReviewInterface = closeReviewInterface;
         window.completeReview = completeReview;
         window.updateChunkContent = updateChunkContent;
