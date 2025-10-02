@@ -3723,8 +3723,8 @@
                 
                 notesToShow.forEach((note, index) => {
                     const noteCard = createNoteCard(note, false); // Hide context button in source notes panel
-                    // Add highlighting for the specific note
-                    if (targetNoteIndex >= 0 && index === targetNoteIndex) {
+                    // Add highlighting for the specific note - check if this note matches the target chunk_index
+                    if (targetNoteIndex >= 0 && note.chunk_index === chunkIndex) {
                         console.log('Highlighting note at index:', index, 'with chunk_index:', note.chunk_index);
                         noteCard.classList.add('highlighted-note');
                         noteCard.style.background = '#f0f9ff';
