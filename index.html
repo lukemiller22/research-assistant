@@ -1090,6 +1090,141 @@
         .structure-path-input::placeholder {
             color: #9ca3af;
         }
+        
+        .saved-notes-section {
+            margin: 16px 0;
+        }
+        
+        .saved-notes-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            color: #475569;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .saved-notes-btn:hover {
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+        
+        .saved-notes-btn .icon {
+            width: 16px;
+            height: 16px;
+        }
+        
+        .custom-multiselect {
+            position: relative;
+            margin: 16px 0;
+        }
+        
+        .multiselect-trigger {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .multiselect-trigger:hover {
+            border-color: #9ca3af;
+        }
+        
+        .multiselect-selected {
+            flex: 1;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+        }
+        
+        .multiselect-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 2px 6px;
+            background: #f3f4f6;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #374151;
+        }
+        
+        .multiselect-tag .remove {
+            cursor: pointer;
+            color: #6b7280;
+        }
+        
+        .multiselect-tag .remove:hover {
+            color: #374151;
+        }
+        
+        .multiselect-arrow {
+            color: #6b7280;
+            transition: transform 0.2s ease;
+        }
+        
+        .multiselect-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            z-index: 10;
+            margin-top: 4px;
+        }
+        
+        .multiselect-search {
+            padding: 8px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .multiselect-search input {
+            width: 100%;
+            padding: 4px 8px;
+            border: none;
+            outline: none;
+            font-size: 14px;
+        }
+        
+        .multiselect-options {
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .multiselect-option {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        
+        .multiselect-option:hover {
+            background: #f9fafb;
+        }
+        
+        .multiselect-option input[type="checkbox"] {
+            margin-right: 8px;
+        }
+        
+        .multiselect-option label {
+            cursor: pointer;
+            font-size: 14px;
+            color: #374151;
+        }
 
         .review-stats {
             background: #f1f5f9;
@@ -1245,7 +1380,9 @@
                 <div class="panel-title">Notes</div>
             </div>
             <div class="panel-content">
-                <textarea class="search-input notes-search" placeholder="Search your sources with a detailed query or question" id="notes-search" oninput="performSearch(); autoResizeTextarea(this)" onkeydown="handleSearchKeydown(event)"></textarea>
+                <textarea class="search-input notes-search" placeholder="Search your sources with a detailed query or question" id="notes-search" oninput="console.log('Input event triggered'); performSearch(); autoResizeTextarea(this)" onkeydown="handleSearchKeydown(event)"></textarea>
+                <button onclick="testSearch('grace of God')" style="margin-top: 10px; padding: 5px 10px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer;">Test Search</button>
+                <button onclick="console.log('Search mode:', searchMode, 'Auto-search:', autoSearchEnabled); console.log('Search input value:', document.getElementById('notes-search').value);" style="margin-top: 10px; padding: 5px 10px; background: #28a745; color: white; border: none; border-radius: 4px; cursor: pointer;">Debug State</button>
                 
                 <!-- Search Mode Toggle -->
                 <div class="search-mode-toggle">
@@ -1274,11 +1411,35 @@
                 
                 
                 <!-- Filter Options -->
-                <div class="notes-filters">
-                    <select class="filter-select" id="source-filter" onchange="applyFilters()">
-                        <option value="">All Sources</option>
-                    </select>
+                <div class="saved-notes-section" style="margin: 16px 0;">
+                    <button class="saved-notes-btn" onclick="openSavedNotes()" title="View all saved notes for this project">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                        </svg>
+                        View Saved Notes
+                    </button>
                 </div>
+                
+                <div class="custom-multiselect" id="source-filter-container">
+                    <div class="multiselect-trigger" onclick="toggleMultiselect()">
+                        <div class="multiselect-selected" id="multiselect-selected">
+                            <span class="placeholder">All Sources</span>
+                        </div>
+                        <div class="multiselect-arrow">▼</div>
+                    </div>
+                    <div class="multiselect-dropdown" id="multiselect-dropdown" style="display: none;">
+                        <div class="multiselect-search">
+                            <input type="text" id="multiselect-search" placeholder="Search sources..." onkeyup="filterMultiselectOptions()">
+                        </div>
+                        <div class="multiselect-options" id="multiselect-options">
+                            <div class="multiselect-option" data-value="">
+                                <input type="checkbox" id="option-all" onchange="toggleAllSources()">
+                                <label for="option-all">All Sources</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="notes-filters" style="margin-top: 8px;">
                     <select class="filter-select" id="project-filter" onchange="applyFilters()">
                         <option value="">All Notes</option>
@@ -2078,6 +2239,9 @@
                 searchMode = 'smart';
                 autoSearchContainer.style.display = 'flex';
                 searchInput.placeholder = 'Smart search with semantic understanding';
+                // Re-enable auto-search for smart mode
+                autoSearchEnabled = true;
+                document.getElementById('auto-search-toggle').checked = true;
             } else if (textSearchRadio.checked) {
                 searchMode = 'text';
                 autoSearchContainer.style.display = 'none';
@@ -2320,10 +2484,12 @@
         
         // Text search function (literal text search with operators)
         async function performTextSearch() {
+            console.log('performTextSearch called');
             const searchInput = document.getElementById('notes-search');
             let query = searchInput.value.trim();
             
             if (query.length === 0) {
+                console.log('Empty query - showing empty state');
                 displayEmptyState();
                 return;
             }
@@ -2349,11 +2515,13 @@
                 }
                 
                 const results = await response.json();
+                console.log('Text search response received:', results.length, 'results');
                 
                 // Store all results and show first 10
                 allNotes = results;
                 displayedNotes = results.slice(0, searchLimit); // Show first 10
                 hasMoreResults = results.length > searchLimit; // Check if there are more than 10
+                console.log('Text search - stored', allNotes.length, 'results, showing', displayedNotes.length);
                 
                 // Save results for this search type
                 saveCurrentSearchResults();
@@ -2427,23 +2595,28 @@
         
         // Search functionality with debouncing for textarea
         async function performSearch() {
+            console.log('performSearch called - searchMode:', searchMode, 'autoSearchEnabled:', autoSearchEnabled);
+            console.log('Current search input value:', document.getElementById('notes-search').value);
+            
             // For text search mode, don't auto-search
             if (searchMode === 'text') {
+                console.log('Text search mode - skipping auto-search');
                 return;
             }
             
             // Check if auto-search is enabled
             if (!autoSearchEnabled) {
+                console.log('Auto-search disabled - skipping');
                 return;
             }
             
             // Clear existing timeout
-            if (performSearch.timeout) {
-                clearTimeout(performSearch.timeout);
+            if (autoSearchTimeout) {
+                clearTimeout(autoSearchTimeout);
             }
             
             // Debounce the search for textarea input
-            performSearch.timeout = setTimeout(async () => {
+            autoSearchTimeout = setTimeout(async () => {
                 const searchInput = document.getElementById('notes-search');
                 let query = searchInput.value.trim();
                 
@@ -2463,6 +2636,7 @@
         
         async function executeSearch(query, limit, offset = 0, isNewSearch = false) {
             try {
+                console.log('executeSearch called with query:', query, 'limit:', limit, 'offset:', offset, 'isNewSearch:', isNewSearch);
                 const endpoint = '/search';
                 
                 const requestBody = {
@@ -2483,12 +2657,15 @@
                 }
                 
                 const results = await response.json();
+                console.log('Search response received:', results.length, 'results');
                 
                 if (isNewSearch) {
                     // New search: store all results and show first 10
                     allNotes = results;
                     displayedNotes = results.slice(0, searchLimit); // Show first 10
                     hasMoreResults = results.length > searchLimit; // Check if there are more than 10
+                    console.log('New search - stored', allNotes.length, 'results, showing', displayedNotes.length);
+                    console.log('First result preview:', results[0] ? results[0].content.substring(0, 100) : 'No results');
                     
                     // Save results for this search type
                     saveCurrentSearchResults();
@@ -2574,23 +2751,25 @@
         
         function updateAvailableSources(notes) {
             const sourceFilter = document.getElementById('source-filter');
-            availableSources.clear();
-            
-            // Clear existing options except "All Sources"
-            while (sourceFilter.children.length > 1) {
-                sourceFilter.removeChild(sourceFilter.lastChild);
-            }
-            
-            // Add unique sources from the provided notes
-            notes.forEach(note => {
-                if (!availableSources.has(note.source_title)) {
-                    availableSources.add(note.source_title);
-                    const option = document.createElement('option');
-                    option.value = note.source_title;
-                    option.textContent = note.source_title;
-                    sourceFilter.appendChild(option);
+            if (sourceFilter && sourceFilter.children) {
+                availableSources.clear();
+                
+                // Clear existing options except "All Sources"
+                while (sourceFilter.children.length > 1) {
+                    sourceFilter.removeChild(sourceFilter.lastChild);
                 }
-            });
+                
+                // Add unique sources from the provided notes
+                notes.forEach(note => {
+                    if (!availableSources.has(note.source_title)) {
+                        availableSources.add(note.source_title);
+                        const option = document.createElement('option');
+                        option.value = note.source_title;
+                        option.textContent = note.source_title;
+                        sourceFilter.appendChild(option);
+                    }
+                });
+            }
         }
         
         async function loadAllSources() {
@@ -2602,23 +2781,25 @@
                     
                     // Update source filter with all available sources
                     const sourceFilter = document.getElementById('source-filter');
-                    availableSources.clear();
-                    
-                    // Clear existing options except "All Sources"
-                    while (sourceFilter.children.length > 1) {
-                        sourceFilter.removeChild(sourceFilter.lastChild);
-                    }
-                    
-                    // Add all sources
-                    sources.forEach(source => {
-                        if (!availableSources.has(source.title)) {
-                            availableSources.add(source.title);
-                            const option = document.createElement('option');
-                            option.value = source.title;
-                            option.textContent = source.title;
-                            sourceFilter.appendChild(option);
+                    if (sourceFilter && sourceFilter.children) {
+                        availableSources.clear();
+                        
+                        // Clear existing options except "All Sources"
+                        while (sourceFilter.children.length > 1) {
+                            sourceFilter.removeChild(sourceFilter.lastChild);
                         }
-                    });
+                        
+                        // Add all sources
+                        sources.forEach(source => {
+                            if (!availableSources.has(source.title)) {
+                                availableSources.add(source.title);
+                                const option = document.createElement('option');
+                                option.value = source.title;
+                                option.textContent = source.title;
+                                sourceFilter.appendChild(option);
+                            }
+                        });
+                    }
                 }
             } catch (error) {
                 console.error('Error loading sources:', error);
@@ -2627,40 +2808,51 @@
         
         function updateAvailableProjects() {
             const projectFilter = document.getElementById('project-filter');
-            availableProjects.clear();
-            
-            // Clear existing options except "All Notes"
-            while (projectFilter.children.length > 1) {
-                projectFilter.removeChild(projectFilter.lastChild);
-            }
-            
-            // Add all projects
-            projects.forEach(project => {
-                if (!availableProjects.has(project.title)) {
-                    availableProjects.add(project.title);
-                    const option = document.createElement('option');
-                    option.value = project.id;
-                    option.textContent = project.title;
-                    projectFilter.appendChild(option);
+            if (projectFilter && projectFilter.children) {
+                availableProjects.clear();
+                
+                // Clear existing options except "All Notes"
+                while (projectFilter.children.length > 1) {
+                    projectFilter.removeChild(projectFilter.lastChild);
                 }
-            });
+                
+                // Add all projects
+                projects.forEach(project => {
+                    if (!availableProjects.has(project.title)) {
+                        availableProjects.add(project.title);
+                        const option = document.createElement('option');
+                        option.value = project.id;
+                        option.textContent = project.title;
+                        projectFilter.appendChild(option);
+                    }
+                });
+            }
         }
         
         function applyFilters() {
-            const sourceFilter = document.getElementById('source-filter').value;
-            const projectFilter = document.getElementById('project-filter').value;
+            console.log('applyFilters called');
+            const sourceFilter = document.getElementById('source-filter');
+            const projectFilter = document.getElementById('project-filter');
+            
+            if (!sourceFilter || !projectFilter) {
+                console.log('Missing filter elements, returning');
+                return;
+            }
+            
+            const sourceValue = sourceFilter.value;
+            const projectValue = projectFilter.value;
             
             let filteredNotes = [...displayedNotes]; // Use displayedNotes instead of allNotes
             
             // Apply source filter
-            if (sourceFilter) {
-                filteredNotes = filteredNotes.filter(note => note.source_title === sourceFilter);
+            if (sourceValue) {
+                filteredNotes = filteredNotes.filter(note => note.source_title === sourceValue);
             }
             
             // Apply project filter
-            if (projectFilter && projectFilter !== '') {
+            if (projectValue && projectValue !== '') {
                 // Show only notes saved to the specific project
-                const projectNotes = savedNotes.get(projectFilter);
+                const projectNotes = savedNotes.get(projectValue);
                 if (projectNotes) {
                     filteredNotes = filteredNotes.filter(note => {
                         const noteId = note.source_id + '-' + note.chunk_index;
@@ -2677,9 +2869,11 @@
         }
         
         function displayNotes(notes) {
+            console.log('displayNotes called with', notes ? notes.length : 'null', 'notes');
             const resultsContainer = document.getElementById('notes-results');
             
             if (!notes || notes.length === 0) {
+                console.log('No notes to display, showing empty state');
                 displayEmptyState();
                 return;
             }
@@ -2971,6 +3165,125 @@
             document.getElementById('source-filter').value = sourceTitle;
             applyFilters();
             console.log(`Showing all notes from: ${sourceTitle}`);
+        }
+        
+        function openSavedNotes() {
+            const sourceViewer = document.getElementById('source-viewer');
+            const sourceViewerContent = document.getElementById('source-viewer-content');
+            
+            // Load saved notes for current project
+            const projectNotes = savedNotes.get(currentProjectId);
+            if (projectNotes && projectNotes.size > 0) {
+                showSavedNotesInPanel(projectNotes);
+            } else {
+                sourceViewerContent.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">
+                            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                            </svg>
+                        </div>
+                        <div class="empty-text">No saved notes for this project</div>
+                    </div>
+                `;
+            }
+            
+            sourceViewer.style.display = 'block';
+        }
+        
+        function showSavedNotesInPanel(projectNotes) {
+            const sourceViewerContent = document.getElementById('source-viewer-content');
+            const project = projects.find(p => p.id === currentProjectId);
+            
+            sourceViewerContent.innerHTML = `
+                <div class="source-viewer-header">
+                    <h3>Saved Notes from ${project?.title || 'Current Project'}</h3>
+                    <button class="source-viewer-close" onclick="closeSourceViewer()">
+                        <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+                        </svg>
+                    </button>
+                </div>
+                <div class="source-viewer-content">
+                    ${Array.from(projectNotes).map(noteId => {
+                        const note = allNotes.find(n => (n.source_id + '-' + n.chunk_index) === noteId);
+                        if (!note) return '';
+                        return createNoteCard(note, true, true);
+                    }).join('')}
+                </div>
+            `;
+        }
+        
+        function closeSourceViewer() {
+            const sourceViewer = document.getElementById('source-viewer');
+            sourceViewer.style.display = 'none';
+        }
+        
+        function toggleMultiselect() {
+            const dropdown = document.getElementById('multiselect-dropdown');
+            if (dropdown.style.display === 'none') {
+                dropdown.style.display = 'block';
+            } else {
+                dropdown.style.display = 'none';
+            }
+        }
+        
+        function filterMultiselectOptions() {
+            const searchTerm = document.getElementById('multiselect-search').value.toLowerCase();
+            const options = document.querySelectorAll('.multiselect-option');
+            
+            options.forEach(option => {
+                const label = option.querySelector('label').textContent.toLowerCase();
+                if (label.includes(searchTerm)) {
+                    option.style.display = 'flex';
+                } else {
+                    option.style.display = 'none';
+                }
+            });
+        }
+        
+        function toggleAllSources() {
+            const allCheckbox = document.getElementById('option-all');
+            const otherCheckboxes = document.querySelectorAll('.multiselect-option input[type="checkbox"]:not(#option-all)');
+            
+            if (allCheckbox.checked) {
+                otherCheckboxes.forEach(checkbox => {
+                    checkbox.checked = true;
+                });
+            } else {
+                otherCheckboxes.forEach(checkbox => {
+                    checkbox.checked = false;
+                });
+            }
+            
+            updateMultiselectDisplay();
+        }
+        
+        function toggleSourceOption(sourceTitle) {
+            const checkbox = document.querySelector(`input[value="${sourceTitle}"]`);
+            if (checkbox) {
+                checkbox.checked = !checkbox.checked;
+                updateMultiselectDisplay();
+            }
+        }
+        
+        function updateMultiselectDisplay() {
+            const selectedCheckboxes = document.querySelectorAll('.multiselect-option input[type="checkbox"]:checked');
+            const selectedContainer = document.getElementById('multiselect-selected');
+            
+            selectedContainer.innerHTML = '';
+            
+            selectedCheckboxes.forEach(checkbox => {
+                const label = checkbox.nextElementSibling.textContent;
+                const tag = document.createElement('span');
+                tag.className = 'multiselect-tag';
+                tag.innerHTML = `${label} <span class="remove" onclick="toggleSourceOption('${label}')">×</span>`;
+                selectedContainer.appendChild(tag);
+            });
+            
+            if (selectedCheckboxes.length === 0) {
+                selectedContainer.innerHTML = '<span class="placeholder">All Sources</span>';
+            }
         }
         
         async function copyNoteContent(content, sourceTitle, author, buttonElement) {
@@ -4157,10 +4470,39 @@
             });
         }
         
+        // Initialize search functionality
+        function initializeSearch() {
+            console.log('Initializing search functionality...');
+            
+            // Set initial search mode
+            searchMode = 'smart';
+            autoSearchEnabled = true;
+            
+            // Update UI to reflect current state
+            const smartSearchRadio = document.querySelector('input[name="search-mode"][value="smart"]');
+            const textSearchRadio = document.querySelector('input[name="search-mode"][value="text"]');
+            const autoSearchToggle = document.getElementById('auto-search-toggle');
+            
+            if (smartSearchRadio) smartSearchRadio.checked = true;
+            if (textSearchRadio) textSearchRadio.checked = false;
+            if (autoSearchToggle) autoSearchToggle.checked = true;
+            
+            // Set initial placeholder
+            const searchInput = document.getElementById('notes-search');
+            if (searchInput) {
+                searchInput.placeholder = 'Smart search with semantic understanding';
+            }
+            
+            console.log('Search initialized - mode:', searchMode, 'auto-search:', autoSearchEnabled);
+        }
+        
         // File input handling
         document.addEventListener('DOMContentLoaded', async function() {
             // Initialize projects
             await initializeProjects();
+            
+            // Initialize search mode and auto-search
+            initializeSearch();
             
             // Initialize textarea auto-resize
             const searchTextarea = document.getElementById('notes-search');
@@ -4236,6 +4578,13 @@
         window.testCopy = function() {
             console.log('Testing copy function...');
             copyNoteContent('Test content', 'Test Source', 'Test Author', document.querySelector('.note-action-btn'));
+        };
+        
+        // Test function to verify search works
+        window.testSearch = function(query = 'grace of God') {
+            console.log('Testing search with query:', query);
+            document.getElementById('notes-search').value = query;
+            performSearch();
         };
         
         // Simple test function to verify onclick works
