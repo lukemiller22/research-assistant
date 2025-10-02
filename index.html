@@ -1839,16 +1839,20 @@
         // Initialize projects
         async function initializeProjects() {
             try {
+                console.log('Initializing projects...');
                 // Load projects from database
                 await loadProjectsFromDatabase();
+                console.log('Projects loaded:', projects.size, 'projects');
                 
                 // If no projects exist, create a default one
                 if (projects.size === 0) {
+                    console.log('No projects found, creating default project...');
                     const defaultProject = await createProjectInDatabase('Untitled Document');
                     if (defaultProject) {
                         projects.set(defaultProject.id, defaultProject);
                         savedNotes.set(defaultProject.id, new Set());
                         currentProjectId = defaultProject.id;
+                        console.log('Default project created with ID:', currentProjectId);
                     }
                 }
                 
@@ -3158,7 +3162,10 @@
         }
 
         function toggleSaveNote(noteId) {
+            console.log('toggleSaveNote called with noteId:', noteId, 'currentProjectId:', currentProjectId);
             if (!currentProjectId) {
+                console.log('No current project selected, cannot save note');
+                alert('Please select a project first before saving notes');
                 return;
             }
             
@@ -3171,8 +3178,10 @@
             
             if (projectNotes.has(noteId)) {
                 projectNotes.delete(noteId);
+                console.log('Removed note from project:', noteId);
             } else {
                 projectNotes.add(noteId);
+                console.log('Added note to project:', noteId);
             }
             
             // Update the button appearance
