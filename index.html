@@ -3234,7 +3234,7 @@
             Array.from(projectNotes).forEach(noteId => {
                 const note = allNotes.find(n => (n.source_id + '-' + n.chunk_index) === noteId);
                 if (note) {
-                    const noteCard = createNoteCard(note, true, true);
+                    const noteCard = createNoteCard(note, false, true); // Don't show context button for saved notes
                     sourceViewerContent.appendChild(noteCard);
                 }
             });
