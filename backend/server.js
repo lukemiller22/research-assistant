@@ -9,163 +9,90 @@ const OpenAI = require('openai');
 const pdfParse = require('pdf-parse');
 const AdmZip = require('adm-zip');
 
-// ===== INTELLIGENT CHUNKING WITH GPT-4O =====
+// ===== SIMPLE CHARACTER-BASED CHUNKING =====
 
-// Intelligent chunking function using GPT-4o for cleaning and semantic chunking
-async function intelligentChunkWithGPT4o(rawText, sourceType, title) {
-  const maxRetries = 3;
-  const timeoutMs = 5 * 60 * 1000; // 5 minutes
+// Simple character-based chunking function
+function createChunks(rawText, sourceType, title) {
+  console.log(`Creating chunks for ${sourceType} content (${rawText.length} chars)`);
   
-  // Create the prompt for GPT-4o
-  const prompt = `You are an expert at cleaning and chunking text content for a research assistant system. 
-
-TASK: Clean and chunk the following ${sourceType.toUpperCase()} content into semantic chunks.
-
-CLEANING REQUIREMENTS:
-- Remove headers, footers, page numbers, footnote markers
-- Remove table of contents with page numbers
-- Remove bibliography formatting artifacts
-- Preserve chapter/section titles and detect hierarchy
-- Clean up formatting artifacts while preserving meaning
-
-CHUNKING REQUIREMENTS:
-- Chunk by natural semantic units (paragraphs or coherent passages)
-- Each chunk should be 200-800 words ideally
-- Filter out chunks < 50 characters
-- Preserve logical flow and context
-
-OUTPUT FORMAT:
-Return a JSON array of chunks with this exact structure:
-[
-  {
-    "content": "cleaned paragraph text",
-    "chapter_number": 1,
-    "chapter_title": "Chapter Title"
-  }
-]
-
-If chapter information is not detectable, use null for chapter_number and chapter_title.
-
-CONTENT TO PROCESS:
-${rawText}
-
-Return only the JSON array, no other text.`;
-
-  for (let attempt = 1; attempt <= maxRetries; attempt++) {
-    try {
-      console.log(`GPT-4o chunking attempt ${attempt}/${maxRetries} for ${sourceType} content (${rawText.length} chars)`);
-      
-      // Create timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('GPT-4o request timeout')), timeoutMs);
-      });
-      
-      // Make the API call with timeout
-      const apiCall = openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          {
-            role: "system",
-            content: "You are an expert at cleaning and chunking text content. Always return valid JSON arrays."
-          },
-          {
-            role: "user", 
-            content: prompt
-          }
-        ],
-        response_format: { type: "json_object" },
-        max_tokens: 8000,
-        temperature: 0.1
-      });
-      
-      const response = await Promise.race([apiCall, timeoutPromise]);
-      
-      // Parse the response
-      const responseText = response.choices[0].message.content;
-      console.log(`GPT-4o response length: ${responseText.length} characters`);
-      
-      // Parse JSON response
-      let chunks;
-      try {
-        const parsed = JSON.parse(responseText);
-        chunks = Array.isArray(parsed) ? parsed : [parsed];
-      } catch (parseError) {
-        // Try to extract JSON from response if it's wrapped in other text
-        const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-        if (jsonMatch) {
-          chunks = JSON.parse(jsonMatch[0]);
-        } else {
-          throw new Error(`Failed to parse JSON response: ${parseError.message}`);
-        }
-      }
-      
-      // Validate and format chunks
-      const formattedChunks = chunks
-        .filter(chunk => chunk && chunk.content && chunk.content.trim().length >= 50)
-        .map((chunk, index) => ({
-          content: chunk.content.trim(),
-          structure_path: chunk.chapter_title ? 
-            `Chapter ${chunk.chapter_number || 'Unknown'} > ${chunk.chapter_title}` : 
-            '',
-          chunk_index: index,
-          page_title: title,
-          block_type: `${sourceType}_chunk`
-        }));
-      
-      // Log token usage and cost estimate
-      const tokensUsed = response.usage?.total_tokens || 0;
-      const estimatedCost = (tokensUsed / 1000) * 0.03; // Rough estimate for GPT-4o
-      console.log(`GPT-4o usage: ${tokensUsed} tokens, estimated cost: $${estimatedCost.toFixed(4)}`);
-      console.log(`Created ${formattedChunks.length} chunks from ${sourceType} content`);
-      
-      // Log first 3 chunks for verification
-      console.log('First 3 chunks preview:');
-      formattedChunks.slice(0, 3).forEach((chunk, i) => {
-        console.log(`Chunk ${i + 1}: ${chunk.content.substring(0, 100)}...`);
-      });
-      
-      return formattedChunks;
-      
-    } catch (error) {
-      console.error(`GPT-4o chunking attempt ${attempt} failed:`, error.message);
-      
-      if (attempt === maxRetries) {
-        console.log('All GPT-4o attempts failed, falling back to simple paragraph chunking');
-        return fallbackToSimpleChunking(rawText, sourceType, title);
-      }
-      
-      // Exponential backoff
-      const delay = Math.pow(2, attempt) * 1000;
-      console.log(`Retrying in ${delay/1000} seconds...`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-}
-
-// Fallback chunking function when GPT-4o fails
-function fallbackToSimpleChunking(rawText, sourceType, title) {
-  console.log(`Using fallback chunking for ${sourceType} content`);
+  // Clean the text first
+  const cleanedText = rawText
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    // Remove horizontal lines and separators
+    .replace(/^[-=_*]{3,}$/gm, '') // Lines of dashes, equals, underscores, or asterisks
+    .replace(/^[─━┃┄┅┆┇┈┉┊┋]+$/gm, '') // Common horizontal line characters
+    .replace(/^[•·‣⁃⁌⁍⁎⁏]/gm, '') // Bullet points and similar
+    .replace(/^[|┃]/gm, '') // Vertical lines
+    .replace(/^\s*[-=_*]+\s*$/gm, '') // Lines of dashes/equals/underscores with spaces
+    .replace(/\n\s*\n\s*\n+/g, '\n\n') // Multiple empty lines to double
+    .replace(/\s+/g, ' ') // Multiple spaces to single
+    .trim();
   
-  // Simple paragraph-based chunking as fallback
-  const paragraphs = rawText.split(/\n\s*\n/).filter(p => p.trim().length > 0);
   const chunks = [];
+  const targetChunkSize = 900; // Target 800-1000 characters
+  const minChunkSize = 200;    // Minimum chunk size
+  const maxChunkSize = 1200;   // Maximum chunk size
   
-  paragraphs.forEach((paragraph, index) => {
-    const trimmedParagraph = paragraph.trim();
-    if (trimmedParagraph.length >= 50) {
-    chunks.push({
-        content: trimmedParagraph,
-      structure_path: '',
-        chunk_index: index,
+  // Split into sentences
+  const sentences = cleanedText.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+  console.log(`Found ${sentences.length} sentences`);
+  
+  let currentChunk = '';
+  let chunkIndex = 0;
+  
+  for (let i = 0; i < sentences.length; i++) {
+    const sentence = sentences[i].trim();
+    if (sentence.length === 0) continue;
+    
+    // Check if adding this sentence would exceed max size
+    const potentialChunk = currentChunk + (currentChunk ? ' ' : '') + sentence;
+    
+    if (potentialChunk.length > maxChunkSize && currentChunk.length >= minChunkSize) {
+      // Current chunk is ready, save it
+      chunks.push({
+        content: currentChunk.trim(),
+        structure_path: '',
+        chunk_index: chunkIndex,
         page_title: title,
         block_type: `${sourceType}_chunk`
+      });
+      chunkIndex++;
+      currentChunk = sentence;
+    } else if (potentialChunk.length >= targetChunkSize && currentChunk.length >= minChunkSize) {
+      // We've hit our target size, save the chunk
+      chunks.push({
+        content: potentialChunk.trim(),
+        structure_path: '',
+        chunk_index: chunkIndex,
+        page_title: title,
+        block_type: `${sourceType}_chunk`
+      });
+      chunkIndex++;
+      currentChunk = '';
+    } else {
+      // Add sentence to current chunk
+      currentChunk = potentialChunk;
+    }
+  }
+  
+  // Add any remaining text as the last chunk
+  if (currentChunk.trim().length >= minChunkSize) {
+    chunks.push({
+      content: currentChunk.trim(),
+      structure_path: '',
+      chunk_index: chunkIndex,
+      page_title: title,
+      block_type: `${sourceType}_chunk`
     });
   }
-  });
   
-  console.log(`Fallback created ${chunks.length} chunks`);
+  console.log(`Created ${chunks.length} chunks`);
+  console.log('Chunk sizes:', chunks.map(c => c.content.length));
+  
   return chunks;
 }
+
 
 // ===== SIMPLE PDF PROCESSING FUNCTIONS =====
 
@@ -1117,6 +1044,165 @@ function processGenericJSON(jsonContent, title) {
 }
 
 
+// ===== JSONL UPLOAD ENDPOINT =====
+
+app.post('/upload-jsonl', async (req, res) => {
+  try {
+    const { content } = req.body;
+    
+    if (!content) {
+      return res.status(400).json({ error: 'JSONL content is required' });
+    }
+    
+    console.log('Processing JSONL upload...');
+    
+    // Parse JSONL content
+    const lines = content.trim().split('\n').filter(line => line.trim());
+    const chunks = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      try {
+        const chunk = JSON.parse(lines[i]);
+        
+        // Validate required fields
+        if (!chunk.id || !chunk.content || !chunk.embedding) {
+          throw new Error(`Missing required fields in line ${i + 1}`);
+        }
+        
+        if (!Array.isArray(chunk.embedding) || chunk.embedding.length !== 1536) {
+          throw new Error(`Invalid embedding in line ${i + 1}`);
+        }
+        
+        chunks.push(chunk);
+      } catch (parseError) {
+        console.error(`Error parsing line ${i + 1}:`, parseError.message);
+        return res.status(400).json({ 
+          error: `Invalid JSON on line ${i + 1}: ${parseError.message}` 
+        });
+      }
+    }
+    
+    if (chunks.length === 0) {
+      return res.status(400).json({ error: 'No valid chunks found in JSONL' });
+    }
+    
+    console.log(`Parsed ${chunks.length} chunks from JSONL`);
+    
+    // Get source info from first chunk
+    const firstChunk = chunks[0];
+    const sourceTitle = firstChunk.source_title || 'Unknown Source';
+    const author = firstChunk.author || 'Unknown Author';
+    const year = firstChunk.year || 'Unknown Year';
+    const genre = firstChunk.genre || 'Unknown Genre';
+    
+    // Create source record in database
+    console.log(`Creating source record: ${sourceTitle}`);
+    const { data: source, error: sourceError } = await supabase
+      .from('sources')
+      .insert({
+        title: sourceTitle,
+        author: author,
+        source_type: 'jsonl',
+        processing_status: 'completed', // Skip review for community sources
+        user_id: null // Community source
+      })
+      .select()
+      .single();
+
+    if (sourceError) throw sourceError;
+    console.log(`Source created with ID: ${source.id}`);
+    
+    // Insert chunks into database
+    console.log(`Inserting ${chunks.length} chunks into database...`);
+    const chunkInserts = chunks.map(chunk => ({
+      source_id: source.id,
+      content: chunk.content,
+      chunk_index: chunk.chunk_index || 0,
+      structure_path: chunk.structure_path || ''
+    }));
+
+    const { data: chunkData, error: chunkError } = await supabase
+      .from('source_chunks')
+      .insert(chunkInserts)
+      .select();
+
+    if (chunkError) throw chunkError;
+    console.log(`Inserted ${chunkData.length} chunks into database`);
+    
+    // Upload to Qdrant with rich metadata
+    console.log(`Uploading ${chunks.length} chunks to Qdrant...`);
+    let qdrantSuccessCount = 0;
+    
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      const dbChunk = chunkData[i];
+      
+      try {
+        // Create Qdrant payload with rich metadata
+        const qdrantPayload = {
+          source_id: source.id,
+          source_title: sourceTitle,
+          author: author,
+          year: year,
+          genre: genre,
+          content: chunk.content,
+          chunk_index: chunk.chunk_index || i,
+          structure_path: chunk.structure_path || '',
+          // Rich metadata for enhanced search
+          source_type: chunk.metadata?.source_type || 'unknown',
+          syntopicon_tags: chunk.metadata?.syntopicon_tags || [],
+          rhetorical_function: chunk.metadata?.rhetorical_function || [],
+          scripture_refs: chunk.metadata?.scripture_refs || [],
+          topics: chunk.metadata?.topics || [],
+          entities: chunk.metadata?.entities || {},
+          is_community: true,
+          community_source_id: `lewis-reading-old-books`
+        };
+        
+        // Upload to Qdrant
+        await qdrant.upsert('documents', {
+          wait: true,
+          points: [{
+            id: dbChunk.id, // Use database chunk ID
+            vector: chunk.embedding,
+            payload: qdrantPayload
+          }]
+        });
+        
+        qdrantSuccessCount++;
+        
+        // Small delay to avoid overwhelming Qdrant
+        if (i % 10 === 0) {
+          await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        
+      } catch (qdrantError) {
+        console.error(`Error uploading chunk ${i} to Qdrant:`, qdrantError.message);
+        // Continue with other chunks even if one fails
+      }
+    }
+    
+    console.log(`Successfully uploaded ${qdrantSuccessCount}/${chunks.length} chunks to Qdrant`);
+    
+    res.json({
+      message: 'JSONL uploaded successfully',
+      source_id: source.id,
+      chunks_created: chunks.length,
+      qdrant_uploaded: qdrantSuccessCount,
+      source_title: sourceTitle,
+      author: author,
+      status: 'completed'
+    });
+
+  } catch (error) {
+    console.error('JSONL upload error:', error);
+    res.status(500).json({ 
+      error: 'Failed to upload JSONL',
+      details: error.message 
+    });
+  }
+});
+
 // ===== UPLOAD AND PROCESS SOURCE =====
 
 app.post('/upload-source', async (req, res) => {
@@ -1139,8 +1225,8 @@ app.post('/upload-source', async (req, res) => {
       console.log(`PDF processed: ${pdfData.pages} pages, ${processedContent.length} characters`);
       console.log(`First 200 chars: ${processedContent.substring(0, 200)}...`);
       
-      // Create chunks from PDF content using GPT-4o intelligent chunking
-      chunks = await intelligentChunkWithGPT4o(processedContent, 'pdf', title);
+      // Create chunks from PDF content using simple character-based chunking
+      chunks = createChunks(processedContent, 'pdf', title);
       
     } else if (source_type === 'epub') {
       // Handle EPUB files with intelligent chunking
@@ -1157,8 +1243,8 @@ app.post('/upload-source', async (req, res) => {
     
     console.log(`EPUB processing complete. Content length: ${processedContent.length} characters`);
       
-      // Create chunks from EPUB content using GPT-4o intelligent chunking
-      chunks = await intelligentChunkWithGPT4o(processedContent, 'epub', title);
+      // Create chunks from EPUB content using simple character-based chunking
+      chunks = createChunks(processedContent, 'epub', title);
       
     } else if (source_type === 'json') {
       // Handle generic JSON files (keep existing logic)
@@ -1171,9 +1257,9 @@ app.post('/upload-source', async (req, res) => {
       chunks = parseRoamJSON(content);
       
     } else {
-      // Handle text files with intelligent chunking
+      // Handle text files with simple character-based chunking
       processedContent = content;
-      chunks = await intelligentChunkWithGPT4o(content, 'text', title);
+      chunks = createChunks(content, 'text', title);
     }
     
     // 2. Insert source into database with pending_review status
@@ -1882,14 +1968,126 @@ app.put('/sources/:id', async (req, res) => {
   }
 });
 
-// Search endpoint
+// ===== HYBRID SEARCH FUNCTIONS =====
+
+// Analyze query to detect intent and extract key terms
+function analyzeQuery(query) {
+  const queryLower = query.toLowerCase();
+  
+  return {
+    // Intent detection with more sophisticated patterns
+    isArgumentative: /\b(argument|evidence|claim|because|why|reason|prove|support|defend|refute|contradict|disagree|agree)\b/.test(queryLower),
+    isPractical: /\b(how to|advice|strategy|should|steps|guide|method|technique|process|way to)\b/.test(queryLower),
+    isNarrative: /\b(story|experience|tell me about|describe|narrative|anecdote|example|case)\b/.test(queryLower),
+    isConceptual: /\b(what is|define|concept|meaning|theory|principle|idea|notion)\b/.test(queryLower),
+    
+    // Extract potential concept matches
+    keyTerms: queryLower.split(/\s+/).filter(term => 
+      term.length > 2 && 
+      !['the', 'and', 'or', 'but', 'for', 'with', 'about', 'from', 'into', 'through', 'during', 'before', 'after', 'above', 'below', 'up', 'down', 'in', 'out', 'on', 'off', 'over', 'under', 'again', 'further', 'then', 'once'].includes(term)
+    )
+  };
+}
+
+// Apply metadata boosting to search results
+function applyMetadataBoosting(results, queryAnalysis) {
+  const queryLower = queryAnalysis.keyTerms.join(' ').toLowerCase();
+  
+  return results.map(result => {
+    let boostScore = 1.0;
+    const boostReasons = [];
+    
+    // Rhetorical function boosting based on intent
+    if (queryAnalysis.isArgumentative && result.rhetorical_function?.includes('logical')) {
+      boostScore *= 1.3;
+      boostReasons.push('logical argument match');
+    }
+    
+    if (queryAnalysis.isPractical && result.rhetorical_function?.includes('practical')) {
+      boostScore *= 1.3;
+      boostReasons.push('practical advice match');
+    }
+    
+    if (queryAnalysis.isNarrative && result.rhetorical_function?.includes('narrative')) {
+      boostScore *= 1.3;
+      boostReasons.push('narrative content match');
+    }
+    
+    if (queryAnalysis.isConceptual && result.rhetorical_function?.includes('semantic')) {
+      boostScore *= 1.2;
+      boostReasons.push('conceptual content match');
+    }
+    
+    // Syntopicon tag matches
+    if (result.syntopicon_tags && Array.isArray(result.syntopicon_tags)) {
+      for (const tag of result.syntopicon_tags) {
+        if (queryLower.includes(tag.toLowerCase())) {
+          boostScore *= 1.2;
+          boostReasons.push(`syntopicon tag: ${tag}`);
+        }
+      }
+    }
+    
+    // Topic matches
+    if (result.topics && Array.isArray(result.topics)) {
+      for (const topic of result.topics) {
+        if (queryLower.includes(topic.toLowerCase())) {
+          boostScore *= 1.15;
+          boostReasons.push(`topic: ${topic}`);
+        }
+      }
+    }
+    
+    // Entity matches (people, works)
+    if (result.entities) {
+      if (result.entities.people && Array.isArray(result.entities.people)) {
+        for (const person of result.entities.people) {
+          if (queryLower.includes(person.toLowerCase())) {
+            boostScore *= 1.25;
+            boostReasons.push(`person: ${person}`);
+          }
+        }
+      }
+      
+      if (result.entities.works && Array.isArray(result.entities.works)) {
+        for (const work of result.entities.works) {
+          if (queryLower.includes(work.toLowerCase())) {
+            boostScore *= 1.2;
+            boostReasons.push(`work: ${work}`);
+          }
+        }
+      }
+    }
+    
+    // Scripture reference matches
+    if (result.scripture_refs && Array.isArray(result.scripture_refs)) {
+      for (const ref of result.scripture_refs) {
+        if (queryLower.includes(ref.toLowerCase())) {
+          boostScore *= 1.3;
+          boostReasons.push(`scripture: ${ref}`);
+        }
+      }
+    }
+    
+    return {
+      ...result,
+      semanticScore: result.score,
+      finalScore: result.score * boostScore,
+      boostScore: boostScore,
+      boostReasons: boostReasons
+    };
+  });
+}
+
+// Search endpoint with hybrid search
 app.post('/search', async (req, res) => {
   try {
-    console.log('=== SEARCH REQUEST RECEIVED ===');
+    console.log('=== HYBRID SEARCH REQUEST RECEIVED ===');
     const { query, limit = 20 } = req.body;
     console.log(`Search query: "${query}", limit: ${limit}`);
     
-    // 1. Generate embedding for search query
+    // Stage 1: Semantic Search
+    console.log('Stage 1: Performing semantic search...');
     const embeddingResponse = await openai.embeddings.create({
       model: "text-embedding-3-small",
       input: query,
@@ -1897,20 +2095,17 @@ app.post('/search', async (req, res) => {
     
     const queryEmbedding = embeddingResponse.data[0].embedding;
     
-    // 2. Search similar vectors in Qdrant
+    // Get more candidates for re-ranking (50 as suggested)
     const searchResult = await qdrant.search('documents', {
       vector: queryEmbedding,
-      limit: limit * 2, // Get more results to account for filtering
+      limit: 50,
       with_payload: true
     });
     
     console.log(`Qdrant search returned ${searchResult.length} results for query: "${query}"`);
     
-    // 3. Get unique source IDs from search results
+    // Filter results to only include chunks from existing sources
     const sourceIds = [...new Set(searchResult.map(point => point.payload.source_id))];
-    console.log(`Found ${sourceIds.length} unique source IDs:`, sourceIds);
-    
-    // 4. Check which sources still exist in the database
     const { data: existingSources, error: sourcesError } = await supabase
       .from('sources')
       .select('id')
@@ -1919,17 +2114,18 @@ app.post('/search', async (req, res) => {
     if (sourcesError) throw sourcesError;
     
     const existingSourceIds = new Set(existingSources.map(source => source.id));
-    console.log(`Found ${existingSourceIds.size} existing sources in database`);
-    
-    // 5. Filter results to only include chunks from existing sources
     const validResults = searchResult.filter(point => 
       existingSourceIds.has(point.payload.source_id)
-    ).slice(0, limit); // Limit to requested number
+    );
     
     console.log(`After filtering, ${validResults.length} valid results remain`);
     
-    // 6. Format results
-    const results = validResults.map(point => ({
+    // Stage 2: Metadata Boosting & Re-ranking
+    console.log('Stage 2: Applying metadata boosting and re-ranking...');
+    const queryAnalysis = analyzeQuery(query);
+    console.log('Query analysis:', queryAnalysis);
+    
+    const boostedResults = applyMetadataBoosting(validResults.map(point => ({
       score: point.score,
       content: point.payload.content,
       source_title: point.payload.source_title,
@@ -1946,10 +2142,26 @@ app.post('/search', async (req, res) => {
       biblical_refs: point.payload.biblical_refs || [],
       topic_tags: point.payload.topic_tags || [],
       ai_curated: point.payload.ai_curated || false,
-      curation_timestamp: point.payload.curation_timestamp
-    }));
+      curation_timestamp: point.payload.curation_timestamp,
+      // Rich metadata for boosting
+      syntopicon_tags: point.payload.syntopicon_tags || [],
+      rhetorical_function: point.payload.rhetorical_function || [],
+      topics: point.payload.topics || [],
+      entities: point.payload.entities || {},
+      scripture_refs: point.payload.scripture_refs || []
+    })), queryAnalysis);
+    
+    // Sort by final score and limit results
+    const finalResults = boostedResults
+      .sort((a, b) => b.finalScore - a.finalScore)
+      .slice(0, limit);
+    
+    console.log(`Final results: ${finalResults.length} (showing top ${Math.min(3, finalResults.length)} with boost info)`);
+    finalResults.slice(0, 3).forEach((result, i) => {
+      console.log(`${i + 1}. Score: ${result.finalScore.toFixed(3)} (semantic: ${result.semanticScore.toFixed(3)}, boost: ${result.boostScore.toFixed(2)}) - ${result.boostReasons.join(', ')}`);
+    });
 
-    res.json(results);
+    res.json(finalResults);
 
   } catch (error) {
     console.error('Search error:', error);
@@ -2624,7 +2836,10 @@ app.post('/projects/:projectId/saved-notes', async (req, res) => {
     }
 
     // Parse noteId to get source_id and chunk_index
-    const [sourceId, chunkIndex] = noteId.split('-');
+    // noteId format: "uuid-chunkIndex" where uuid has dashes
+    const lastDashIndex = noteId.lastIndexOf('-');
+    const sourceId = noteId.substring(0, lastDashIndex);
+    const chunkIndex = noteId.substring(lastDashIndex + 1);
     
     if (!sourceId || chunkIndex === undefined) {
       return res.status(400).json({ error: 'Invalid note ID format' });
@@ -2664,7 +2879,10 @@ app.delete('/projects/:projectId/saved-notes/:noteId', async (req, res) => {
     }
 
     // Parse noteId to get source_id and chunk_index
-    const [sourceId, chunkIndex] = noteId.split('-');
+    // noteId format: "uuid-chunkIndex" where uuid has dashes
+    const lastDashIndex = noteId.lastIndexOf('-');
+    const sourceId = noteId.substring(0, lastDashIndex);
+    const chunkIndex = noteId.substring(lastDashIndex + 1);
     
     if (!sourceId || chunkIndex === undefined) {
       return res.status(400).json({ error: 'Invalid note ID format' });

@@ -1,0 +1,5 @@
+content,source_title,author,year,genre,structure_path,syntopicon_tags,rhetorical_function,topics,scripture_refs,entities_people,entities_works
+"This is the first chunk of content from your source. It should be meaningful text that can stand alone as a search result.","My Source Title","Author Name","2024","Essay","My Source Title > Chapter 1 > Section 1","Education|Knowledge|Philosophy","semantic|logical","reading|classics|education","John 3:16|Matthew 5:3","Plato|Aristotle","Republic|Nicomachean Ethics"
+"This is the second chunk of content. Each row in the CSV becomes one or more searchable chunks.","My Source Title","Author Name","2024","Essay","My Source Title > Chapter 1 > Section 2","Wisdom|Virtue","practical|personal","theology|morality","Romans 8:28","Augustine|Aquinas","City of God|Summa Theologica"
+"This is the third chunk. The tool will automatically generate unique IDs and chunk indices for you.","My Source Title","Author Name","2024","Essay","My Source Title > Chapter 2 > Section 1","Justice|Truth","logical|semantic","ethics|philosophy","1 Corinthians 13","Cicero|Seneca","On Duties|Letters"
+

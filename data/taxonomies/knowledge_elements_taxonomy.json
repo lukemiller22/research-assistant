@@ -1,0 +1,189 @@
+{
+
+    "rhetorical_function": {
+      "description": "Classification of HOW knowledge is expressed - both the form and its specific function. Each category contains specific elements that describe what the text is DOING.",
+      "categories": {
+        "semantic": {
+          "name": "Semantic",
+          "description": "What is being discussed - the conceptual content and subject matter",
+          "elements": [
+            "Concept",
+            "Term",
+            "Definition",
+            "Category",
+            "Domain",
+            "Subject",
+            "Topic",
+            "Question",
+            "Description",
+            "Example",
+            "Context",
+            "Quality",
+            "Quantity",
+            "Relationship"
+          ]
+        },
+        "logical": {
+          "name": "Logical",
+          "description": "How the reasoning is structured - argumentation and inference",
+          "elements": [
+            "Assumption",
+            "Axiom",
+            "Bias",
+            "Claim",
+            "Premise",
+            "Error",
+            "Conditional",
+            "Evidence",
+            "Warrant",
+            "Qualifier",
+            "Objection",
+            "Rebuttal",
+            "Counterargument",
+            "Concession",
+            "Fallacy",
+            "Paradox"
+          ]
+        },
+        "narrative": {
+          "name": "Narrative",
+          "description": "Story and historical elements - concrete particulars in time and space",
+          "elements": [
+            "Origin",
+            "Time",
+            "Place",
+            "Situation",
+            "Person",
+            "Group",
+            "Custom",
+            "Culture",
+            "Event",
+            "Conflict",
+            "Action",
+            "Quotation",
+            "Ritual",
+            "Artifact",
+            "Ideology",
+            "Telos"
+          ],
+          "notes": {
+            "Quotation": "Spoken words from real people in events (e.g., 'Et tu, Brute?')"
+          }
+        },
+        "personal": {
+          "name": "Personal",
+          "description": "Subjective and interior dimensions - first-person experience and reflection",
+          "elements": [
+            "Identity",
+            "Thought",
+            "Emotion",
+            "Perception",
+            "Desire",
+            "Intention",
+            "Need",
+            "Gratitude",
+            "Taste",
+            "Worship",
+            "Obligation",
+            "Imagination",
+            "Decision",
+            "Confession",
+            "Request",
+            "Lament",
+            "Memory",
+            "Doubt"
+          ],
+          "notes": {
+            "Thought": "Cognitive reflection, reasoning, mental deliberation",
+            "Perception": "Sensory experience, how things appear to the senses"
+          }
+        },
+        "practical": {
+          "name": "Practical",
+          "description": "Action-oriented and applied - methods, processes, and directives",
+          "elements": [
+            "Goal",
+            "Strategy",
+            "Problem",
+            "Mental Model",
+            "Principle",
+            "Solution",
+            "Constraint",
+            "Hypothesis",
+            "Experiment",
+            "Task",
+            "Project",
+            "Habit",
+            "Exercise",
+            "Metric",
+            "Imperative",
+            "Tool",
+            "Medium",
+            "Resource",
+            "Process",
+            "System"
+          ],
+          "notes": {
+            "Imperative": "Commands, rules, exhortations, directives for action"
+          }
+        },
+        "symbolic": {
+          "name": "Symbolic",
+          "description": "Figurative language and imagery - non-literal expression",
+          "elements": [
+            "Archetype",
+            "Theme",
+            "Story",
+            "Metaphor",
+            "Idiom",
+            "Symbol",
+            "Simile",
+            "Analogy",
+            "Parable",
+            "Allegory",
+            "Typology",
+            "Irony",
+            "Hyperbole",
+            "Personification"
+          ]
+        },
+        "reference": {
+          "name": "Reference",
+          "description": "Intertextual elements - relations to other written texts",
+          "elements": [
+            "Source",
+            "Reference",
+            "Cross-Reference",
+            "Citation",
+            "Annotation",
+            "Allusion",
+            "Commentary",
+            "Summary",
+            "Paraphrase",
+            "Synthesis",
+            "Excerpt"
+          ],
+          "notes": {
+            "Excerpt": "Reproduced text from written sources (quoting another text)",
+            "Citation": "Formal bibliographic reference (footnote/endnote style)"
+          }
+        },
+        "structural": {
+          "name": "Structural",
+          "description": "Organization and arrangement - how parts relate within the document",
+          "elements": [
+            "Series",
+            "Progression",
+            "Alternatives",
+            "Outline",
+            "Transition",
+            "Introduction",
+            "Conclusion",
+            "Digression",
+            "Parenthetical",
+            "Recapitulation"
+          ]
+        }
+      }
+    }
+  }

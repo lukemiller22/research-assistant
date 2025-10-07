@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Notes Button</title>
+</head>
+<body>
+    <h1>Test Notes Button</h1>
+    <button onclick="testNotes()">Test Notes API</button>
+    <div id="result"></div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001';
+        
+        async function testNotes() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                console.log('Testing API call...');
+                const response = await fetch(`${API_BASE}/sources/on_reading_old_books/notes`);
+                console.log('Response status:', response.status);
+                console.log('Response ok:', response.ok);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                console.log('Data received:', data.length, 'items');
+                
+                resultDiv.innerHTML = `
+                    <h3>Success!</h3>
+                    <p>Received ${data.length} notes</p>
+                    <p>First note: ${data[0].content.substring(0, 100)}...</p>
+                `;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                resultDiv.innerHTML = `
+                    <h3>Error!</h3>
+                    <p>${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,37 @@
+{
+  "name": "research-assistant-azure",
+  "version": "1.0.0",
+  "description": "Research Assistant with Azure Cognitive Search integration",
+  "main": "backend/server-azure.js",
+  "scripts": {
+    "start": "node backend/server-azure.js",
+    "migrate": "node migrate-to-azure.js",
+    "compare": "node compare-search-results.js",
+    "test-azure": "node -e \"require('./azure-search-client'); console.log('Azure client loaded successfully');\""
+  },
+  "dependencies": {
+    "@azure/search-documents": "^11.3.0",
+    "@qdrant/js-client-rest": "^1.7.0",
+    "@supabase/supabase-js": "^2.38.0",
+    "openai": "^4.20.0",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "pdf-parse": "^1.1.1",
+    "adm-zip": "^0.5.10",
+    "dotenv": "^16.3.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "keywords": [
+    "research",
+    "search",
+    "azure",
+    "cognitive-search",
+    "vector-search",
+    "hybrid-search"
+  ],
+  "author": "Research Assistant Team",
+  "license": "MIT"
+}
+
